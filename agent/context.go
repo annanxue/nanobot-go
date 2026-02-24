@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/sashabaranov/go-openai"
 )
 
 type ContextBuilder struct {
@@ -114,24 +116,24 @@ func (cb *ContextBuilder) loadBootstrapFiles() string {
 	return strings.Join(parts, "\n\n")
 }
 
-func (cb *ContextBuilder) BuildMessages(history []map[string]interface{}, currentMessage string, skillNames []string, media []string, channel, chatID string) []map[string]interface{} {
-	messages := []map[string]interface{}{}
+func (cb *ContextBuilder) BuildMessages(history []map[string]interface{}, currentMessage string, skillNames []string, media []string, channel, chatID string) []openai.ChatCompletionMessage {
+	messages := []openai.ChatCompletionMessage{}
 
 	systemPrompt := cb.BuildSystemPrompt(skillNames)
 	if channel != "" && chatID != "" {
 		systemPrompt += fmt.Sprintf("\n\n## Current Session\nChannel: %s\nChat ID: %s", channel, chatID)
 	}
-	messages = append(messages, map[string]interface{}{
-		"role":    "system",
-		"content": systemPrompt,
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:    "system",
+		Content: systemPrompt,
 	})
 
-	messages = append(messages, history...)
+	messages = append(messages, ConvertToProviderMessages(history)...)
 
 	userContent := cb.buildUserContent(currentMessage, media)
-	messages = append(messages, map[string]interface{}{
-		"role":    "user",
-		"content": userContent,
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:    "user",
+		Content: userContent.(string),
 	})
 
 	return messages
@@ -142,7 +144,7 @@ func (cb *ContextBuilder) buildUserContent(text string, media []string) interfac
 		return text
 	}
 
-	var images []map[string]interface{}
+	var images []openai.ChatMessagePart
 	for _, path := range media {
 		filepath.Clean(path) // Clean path but don't use the result
 		mimeType := detectMimeType(path)
@@ -152,10 +154,10 @@ func (cb *ContextBuilder) buildUserContent(text string, media []string) interfac
 
 		content, _ := os.ReadFile(path)
 		b64 := base64.StdEncoding.EncodeToString(content)
-		images = append(images, map[string]interface{}{
-			"type": "image_url",
-			"image_url": map[string]string{
-				"url": fmt.Sprintf("data:%s;base64,%s", mimeType, b64),
+		images = append(images, openai.ChatMessagePart{
+			Type: "image_url",
+			ImageURL: &openai.ChatMessageImageURL{
+				URL: fmt.Sprintf("data:%s;base64,%s", mimeType, b64),
 			},
 		})
 	}
@@ -168,35 +170,35 @@ func (cb *ContextBuilder) buildUserContent(text string, media []string) interfac
 	for _, img := range images {
 		result = append(result, img)
 	}
-	result = append(result, map[string]interface{}{
-		"type": "text",
-		"text": text,
+	result = append(result, openai.ChatMessagePart{
+		Type: "text",
+		Text: text,
 	})
 	return result
 }
 
-func (cb *ContextBuilder) AddToolResult(messages []map[string]interface{}, toolCallID, toolName, result string) []map[string]interface{} {
-	messages = append(messages, map[string]interface{}{
-		"role":         "tool",
-		"tool_call_id": toolCallID,
-		"name":         toolName,
-		"content":      result,
+func (cb *ContextBuilder) AddToolResult(messages []openai.ChatCompletionMessage, toolCallID, toolName, result string) []openai.ChatCompletionMessage {
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:       "tool",
+		ToolCallID: toolCallID,
+		Name:       toolName,
+		Content:    result,
 	})
 	return messages
 }
 
-func (cb *ContextBuilder) AddAssistantMessage(messages []map[string]interface{}, content string, toolCalls []map[string]interface{}, reasoningContent string) []map[string]interface{} {
-	msg := map[string]interface{}{
-		"role":    "assistant",
-		"content": content,
+func (cb *ContextBuilder) AddAssistantMessage(messages []openai.ChatCompletionMessage, content string, toolCalls []openai.ToolCall, reasoningContent string) []openai.ChatCompletionMessage {
+	msg := openai.ChatCompletionMessage{
+		Role:    "assistant",
+		Content: content,
 	}
 
 	if len(toolCalls) > 0 {
-		msg["tool_calls"] = toolCalls
+		msg.ToolCalls = toolCalls
 	}
 
 	if reasoningContent != "" {
-		msg["reasoning_content"] = reasoningContent
+		msg.ReasoningContent = reasoningContent
 	}
 
 	messages = append(messages, msg)

@@ -2,20 +2,45 @@ package agent
 
 import (
 	"github.com/nanobotgo/providers"
+
+	"github.com/sashabaranov/go-openai"
 )
 
-func ConvertToProviderMessages(messages []map[string]interface{}) []providers.Message {
-	result := make([]providers.Message, 0, len(messages))
+func ConvertToProviderMessages(messages []map[string]interface{}) []openai.ChatCompletionMessage {
+	result := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, msg := range messages {
 		if role, ok := msg["role"].(string); ok {
 			content := ""
 			if c, ok := msg["content"].(string); ok {
 				content = c
 			}
-			result = append(result, providers.Message{
-				Role:    role,
-				Content: content,
-			})
+			toolCallID := ""
+			if t, ok := msg["tool_call_id"].(string); ok {
+				toolCallID = t
+			}
+
+			openaiMsg := openai.ChatCompletionMessage{
+				Role:       role,
+				Content:    content,
+				ToolCallID: toolCallID,
+			}
+
+			if tc, ok := msg["tool_calls"].([]providers.ToolCallRequest); ok {
+				openaiMsg.ToolCalls = make([]openai.ToolCall, 0, len(tc))
+				for _, t := range tc {
+					argsStr, _ := t.Arguments["arguments"].(string)
+					openaiMsg.ToolCalls = append(openaiMsg.ToolCalls, openai.ToolCall{
+						ID:   t.ID,
+						Type: "function",
+						Function: openai.FunctionCall{
+							Name:      t.Name,
+							Arguments: argsStr,
+						},
+					})
+				}
+			}
+
+			result = append(result, openaiMsg)
 		}
 	}
 	return result

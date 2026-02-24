@@ -48,7 +48,7 @@ func (ct *CronTool) Parameters() map[string]interface{} {
 				"description": "Reminder message (for add)",
 			},
 			"every_seconds": map[string]interface{}{
-				"type":        "integer",
+				"type":        "number",
 				"description": "Interval in seconds (for recurring tasks)",
 			},
 			"cron_expr": map[string]interface{}{

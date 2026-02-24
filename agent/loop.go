@@ -11,6 +11,7 @@ import (
 	"github.com/nanobotgo/providers"
 	"github.com/nanobotgo/session"
 	"github.com/nanobotgo/tools"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 )
 
@@ -224,26 +225,26 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 	for iteration < al.maxIterations {
 		iteration++
 
-		response, err := al.provider.Chat(ctx, ConvertToProviderMessages(messages), ConvertToToolDefinitions(al.toolsRegistry.GetDefinitions()), al.model, 4096, 0.7)
+		response, err := al.provider.Chat(ctx, messages, ConvertToToolDefinitions(al.toolsRegistry.GetDefinitions()), al.model, 4096, 0.7)
 		if err != nil {
 			return "", fmt.Errorf("LLM error: %w", err)
 		}
 
 		if response.HasToolCalls() {
-			toolCallDicts := make([]map[string]interface{}, 0, len(response.ToolCalls))
+			toolCalls := make([]openai.ToolCall, 0, len(response.ToolCalls))
 			for _, tc := range response.ToolCalls {
 				argsJSON, _ := json.Marshal(tc.Arguments)
-				toolCallDicts = append(toolCallDicts, map[string]interface{}{
-					"id":   tc.ID,
-					"type": "function",
-					"function": map[string]interface{}{
-						"name":      tc.Name,
-						"arguments": string(argsJSON),
+				toolCalls = append(toolCalls, openai.ToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					Function: openai.FunctionCall{
+						Name:      tc.Name,
+						Arguments: string(argsJSON),
 					},
 				})
 			}
 
-			messages = al.context.AddAssistantMessage(messages, response.Content, toolCallDicts, response.ReasoningContent)
+			messages = al.context.AddAssistantMessage(messages, response.Content, toolCalls, response.ReasoningContent)
 
 			for _, toolCall := range response.ToolCalls {
 				argsJSON, _ := json.Marshal(toolCall.Arguments)

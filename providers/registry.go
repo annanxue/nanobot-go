@@ -17,6 +17,7 @@ type ProviderSpec struct {
 	DefaultAPIBase      string          `json:"default_api_base"`
 	StripModelPrefix    bool            `json:"strip_model_prefix"`
 	ModelOverrides      []ModelOverride `json:"model_overrides"`
+	ProviderType        string          `json:"provider_type"`
 }
 
 type EnvExtra struct {

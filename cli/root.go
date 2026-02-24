@@ -81,7 +81,9 @@ func makeProvider(cfg *config.Config) (providers.LLMProvider, error) {
 	if providerCfg == nil || providerCfg.APIKey == "" {
 		return nil, fmt.Errorf("no API key configured for provider")
 	}
-
+	if model == "deepseek" {
+		model = "deepseek-reasoner"
+	}
 	return providers.NewLiteLLMProvider(
 		providerCfg.APIKey,
 		providerCfg.APIBase,

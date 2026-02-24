@@ -4,43 +4,120 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 )
 
+type command struct {
+	op             string
+	jobID          string
+	job            *CronJob
+	name           string
+	schedule       CronSchedule
+	message        string
+	deliver        bool
+	channel        string
+	to             string
+	deleteAfterRun bool
+	enabled        bool
+	force          bool
+	resultCh       chan interface{}
+}
+
 type CronService struct {
 	storePath string
 	onJob     func(*CronJob) (string, error)
 	store     *CronStore
 	cron      *cron.Cron
-	running   bool
-	mu        sync.RWMutex
+	running   atomic.Bool
+	cmdCh     chan command
+	stopCh    chan struct{}
 }
 
 func NewCronService(storePath string) *CronService {
-	return &CronService{
+	cs := &CronService{
 		storePath: storePath,
 		cron:      cron.New(cron.WithSeconds()),
-		running:   false,
+		cmdCh:     make(chan command, 100),
+		stopCh:    make(chan struct{}),
+	}
+	cs.doLoadStore()
+	go cs.run()
+	return cs
+}
+
+func (cs *CronService) run() {
+	for {
+		select {
+		case <-cs.stopCh:
+			return
+		case cmd := <-cs.cmdCh:
+			cs.handleCommand(cmd)
+		}
+	}
+}
+
+func (cs *CronService) handleCommand(cmd command) {
+	switch cmd.op {
+	case "load":
+		cs.doLoadStore()
+		cmd.resultCh <- cs.store
+
+	case "save":
+		err := cs.doSaveStore()
+		cmd.resultCh <- err
+
+	case "add":
+		cs.doAddJob(cmd.name, cmd.schedule, cmd.message, cmd.deliver, cmd.channel, cmd.to, cmd.deleteAfterRun, cmd.resultCh)
+
+	case "remove":
+		result := cs.doRemoveJob(cmd.jobID)
+		cmd.resultCh <- result
+
+	case "enable":
+		cs.doEnableJob(cmd.jobID, cmd.enabled, cmd.resultCh)
+
+	case "list":
+		result := cs.doListJobs(cmd.enabled)
+		cmd.resultCh <- result
+
+	case "run":
+		result := cs.doRunJob(cmd.jobID, cmd.force)
+		cmd.resultCh <- result
+
+	case "status":
+		result := cs.doStatus()
+		cmd.resultCh <- result
+
+	case "recompute":
+		cs.doRecomputeNextRuns()
+		cmd.resultCh <- nil
 	}
 }
 
 func (cs *CronService) loadStore() *CronStore {
-	cs.mu.RLock()
-	if cs.store != nil {
-		cs.mu.RUnlock()
-		return cs.store
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "load", resultCh: resultCh}
+	result := <-resultCh
+	return result.(*CronStore)
+}
+
+func (cs *CronService) saveStore() error {
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "save", resultCh: resultCh}
+	err := <-resultCh
+	if err != nil {
+		return err.(error)
 	}
-	cs.mu.RUnlock()
+	return nil
+}
 
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-
+func (cs *CronService) doLoadStore() {
 	if cs.store != nil {
-		return cs.store
+		return
 	}
 
 	if _, err := os.Stat(cs.storePath); err == nil {
@@ -49,26 +126,21 @@ func (cs *CronService) loadStore() *CronStore {
 			var store CronStore
 			if err := json.Unmarshal(data, &store); err == nil {
 				cs.store = &store
-				return cs.store
+				return
 			}
 		}
 		logrus.WithError(err).Warn("Failed to load cron store")
 	}
 
 	cs.store = &CronStore{Version: 1, Jobs: []CronJob{}}
-	return cs.store
 }
 
-func (cs *CronService) saveStore() error {
-	cs.mu.RLock()
-	store := cs.store
-	cs.mu.RUnlock()
-
-	if store == nil {
+func (cs *CronService) doSaveStore() error {
+	if cs.store == nil {
 		return nil
 	}
 
-	data, err := json.MarshalIndent(store, "", "  ")
+	data, err := json.MarshalIndent(cs.store, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -82,42 +154,40 @@ func (cs *CronService) saveStore() error {
 }
 
 func (cs *CronService) Start() error {
-	cs.mu.Lock()
-	if cs.running {
-		cs.mu.Unlock()
+	if cs.running.Load() {
 		return nil
 	}
-	cs.mu.Unlock()
 
-	// Load store without holding the lock
-	cs.loadStore()
+	cs.doLoadStore()
+	cs.doRecomputeNextRuns()
+	err := cs.doSaveStore()
 
-	// Recompute next runs
-	cs.mu.Lock()
-	cs.recomputeNextRuns()
-	err := cs.saveStore()
-	cs.running = true
 	cs.cron.Start()
 	logrus.Infof("Cron service started with %d jobs", len(cs.store.Jobs))
-	cs.mu.Unlock()
+	cs.running.Store(true)
 
 	return err
 }
 
 func (cs *CronService) Stop() {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-
-	if !cs.running {
+	if !cs.running.Load() {
 		return
 	}
 
 	ctx := cs.cron.Stop()
 	<-ctx.Done()
-	cs.running = false
+	cs.running.Store(false)
+
+	close(cs.stopCh)
 }
 
 func (cs *CronService) recomputeNextRuns() {
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "recompute", resultCh: resultCh}
+	<-resultCh
+}
+
+func (cs *CronService) doRecomputeNextRuns() {
 	now := time.Now().UnixMilli()
 	for i := range cs.store.Jobs {
 		if cs.store.Jobs[i].Enabled {
@@ -157,19 +227,19 @@ func (cs *CronService) computeNextRun(schedule *CronSchedule, nowMs int64) *int6
 }
 
 func (cs *CronService) ListJobs(includeDisabled bool) []CronJob {
-	// Load store without holding the lock
-	store := cs.loadStore()
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "list", enabled: includeDisabled, resultCh: resultCh}
+	result := <-resultCh
+	return result.([]CronJob)
+}
 
-	// Now get the lock to access the store
-	cs.mu.RLock()
-	defer cs.mu.RUnlock()
-
+func (cs *CronService) doListJobs(includeDisabled bool) []CronJob {
 	if includeDisabled {
-		return store.Jobs
+		return cs.store.Jobs
 	}
 
 	var jobs []CronJob
-	for _, job := range store.Jobs {
+	for _, job := range cs.store.Jobs {
 		if job.Enabled {
 			jobs = append(jobs, job)
 		}
@@ -178,15 +248,27 @@ func (cs *CronService) ListJobs(includeDisabled bool) []CronJob {
 }
 
 func (cs *CronService) AddJob(name string, schedule CronSchedule, message string, deliver bool, channel, to string, deleteAfterRun bool) (*CronJob, error) {
-	cs.mu.Lock()
-	if cs.store == nil {
-		cs.mu.Unlock()
-		// Load store without holding the lock
-		cs.loadStore()
-		cs.mu.Lock()
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{
+		op:             "add",
+		name:           name,
+		schedule:       schedule,
+		message:        message,
+		deliver:        deliver,
+		channel:        channel,
+		to:             to,
+		deleteAfterRun: deleteAfterRun,
+		resultCh:       resultCh,
 	}
+	job := <-resultCh
+	errVal := <-resultCh
+	if errVal != nil {
+		return job.(*CronJob), errVal.(error)
+	}
+	return job.(*CronJob), nil
+}
 
-	store := cs.store
+func (cs *CronService) doAddJob(name string, schedule CronSchedule, message string, deliver bool, channel, to string, deleteAfterRun bool, resultCh chan interface{}) {
 	now := time.Now().UnixMilli()
 
 	job := CronJob{
@@ -209,75 +291,71 @@ func (cs *CronService) AddJob(name string, schedule CronSchedule, message string
 		DeleteAfterRun: deleteAfterRun,
 	}
 
-	store.Jobs = append(store.Jobs, job)
-	err := cs.saveStore()
+	cs.store.Jobs = append(cs.store.Jobs, job)
 
 	logrus.Infof("Cron: added job '%s' (%s)", name, job.ID)
-	cs.mu.Unlock()
 
-	return &job, err
+	err := cs.doSaveStore()
+
+	resultCh <- &job
+	resultCh <- err
 }
 
 func (cs *CronService) RemoveJob(jobID string) bool {
-	cs.mu.Lock()
-	if cs.store == nil {
-		cs.mu.Unlock()
-		// Load store without holding the lock
-		cs.loadStore()
-		cs.mu.Lock()
-	}
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "remove", jobID: jobID, resultCh: resultCh}
+	result := <-resultCh
+	return result.(bool)
+}
 
-	store := cs.store
-	before := len(store.Jobs)
+func (cs *CronService) doRemoveJob(jobID string) bool {
+	before := len(cs.store.Jobs)
 	var jobs []CronJob
-	for _, job := range store.Jobs {
+	for _, job := range cs.store.Jobs {
 		if job.ID != jobID {
 			jobs = append(jobs, job)
 		}
 	}
-	store.Jobs = jobs
-	removed := len(store.Jobs) < before
+	cs.store.Jobs = jobs
+	removed := len(cs.store.Jobs) < before
 
 	if removed {
-		cs.saveStore()
+		cs.doSaveStore()
 		logrus.Infof("Cron: removed job %s", jobID)
 	}
-
-	cs.mu.Unlock()
 
 	return removed
 }
 
 func (cs *CronService) EnableJob(jobID string, enabled bool) *CronJob {
-	cs.mu.Lock()
-	if cs.store == nil {
-		cs.mu.Unlock()
-		// Load store without holding the lock
-		cs.loadStore()
-		cs.mu.Lock()
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "enable", jobID: jobID, enabled: enabled, resultCh: resultCh}
+	result := <-resultCh
+	if result == nil {
+		return nil
 	}
+	return result.(*CronJob)
+}
 
-	store := cs.store
-	for i := range store.Jobs {
-		if store.Jobs[i].ID == jobID {
-			store.Jobs[i].Enabled = enabled
-			store.Jobs[i].UpdatedAtMs = int(time.Now().UnixMilli())
+func (cs *CronService) doEnableJob(jobID string, enabled bool, resultCh chan interface{}) {
+	for i := range cs.store.Jobs {
+		if cs.store.Jobs[i].ID == jobID {
+			cs.store.Jobs[i].Enabled = enabled
+			cs.store.Jobs[i].UpdatedAtMs = int(time.Now().UnixMilli())
 			if enabled {
 				now := time.Now().UnixMilli()
-				store.Jobs[i].State.NextRunAtMs = cs.computeNextRun(&store.Jobs[i].Schedule, now)
+				cs.store.Jobs[i].State.NextRunAtMs = cs.computeNextRun(&cs.store.Jobs[i].Schedule, now)
 			} else {
-				store.Jobs[i].State.NextRunAtMs = nil
+				cs.store.Jobs[i].State.NextRunAtMs = nil
 			}
-			cs.saveStore()
-			job := store.Jobs[i]
-			cs.mu.Unlock()
-			return &job
+			cs.doSaveStore()
+			job := cs.store.Jobs[i]
+			resultCh <- &job
+			return
 		}
 	}
 
-	cs.mu.Unlock()
-
-	return nil
+	resultCh <- nil
 }
 
 func (cs *CronService) SetOnJob(callback func(*CronJob) (string, error)) {
@@ -285,23 +363,20 @@ func (cs *CronService) SetOnJob(callback func(*CronJob) (string, error)) {
 }
 
 func (cs *CronService) RunJob(jobID string, force bool) bool {
-	cs.mu.Lock()
-	if cs.store == nil {
-		cs.mu.Unlock()
-		// Load store without holding the lock
-		cs.loadStore()
-		cs.mu.Lock()
-	}
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "run", jobID: jobID, force: force, resultCh: resultCh}
+	result := <-resultCh
+	return result.(bool)
+}
 
-	store := cs.store
+func (cs *CronService) doRunJob(jobID string, force bool) bool {
 	var job *CronJob
-	for i := range store.Jobs {
-		if store.Jobs[i].ID == jobID {
-			job = &store.Jobs[i]
+	for i := range cs.store.Jobs {
+		if cs.store.Jobs[i].ID == jobID {
+			job = &cs.store.Jobs[i]
 			break
 		}
 	}
-	cs.mu.Unlock()
 
 	if job == nil {
 		return false
@@ -313,10 +388,7 @@ func (cs *CronService) RunJob(jobID string, force bool) bool {
 
 	cs.executeJob(job)
 
-	// Save store with lock
-	cs.mu.Lock()
-	cs.saveStore()
-	cs.mu.Unlock()
+	cs.doSaveStore()
 
 	return true
 }
@@ -345,19 +417,13 @@ func (cs *CronService) executeJob(job *CronJob) {
 
 	if job.Schedule.Kind == ScheduleKindAt {
 		if job.DeleteAfterRun {
-			// Remove job with lock
-			cs.mu.Lock()
-			store := cs.store
-			if store != nil {
-				var jobs []CronJob
-				for _, j := range store.Jobs {
-					if j.ID != job.ID {
-						jobs = append(jobs, j)
-					}
+			var jobs []CronJob
+			for _, j := range cs.store.Jobs {
+				if j.ID != job.ID {
+					jobs = append(jobs, j)
 				}
-				store.Jobs = jobs
 			}
-			cs.mu.Unlock()
+			cs.store.Jobs = jobs
 		} else {
 			job.Enabled = false
 			job.State.NextRunAtMs = nil
@@ -369,24 +435,23 @@ func (cs *CronService) executeJob(job *CronJob) {
 }
 
 func (cs *CronService) Status() map[string]interface{} {
-	// Load store without holding the lock
-	cs.loadStore()
+	resultCh := make(chan interface{}, 1)
+	cs.cmdCh <- command{op: "status", resultCh: resultCh}
+	result := <-resultCh
+	return result.(map[string]interface{})
+}
 
-	// Now get the lock to access the store
-	cs.mu.RLock()
-	defer cs.mu.RUnlock()
-
+func (cs *CronService) doStatus() map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":         cs.running,
+		"enabled":         cs.running.Load(),
 		"jobs":            len(cs.store.Jobs),
 		"next_wake_at_ms": cs.getNextWakeMs(),
 	}
 }
 
 func (cs *CronService) getNextWakeMs() *int64 {
-	store := cs.store
 	var minNext *int64
-	for _, job := range store.Jobs {
+	for _, job := range cs.store.Jobs {
 		if job.Enabled && job.State.NextRunAtMs != nil {
 			if minNext == nil || *job.State.NextRunAtMs < *minNext {
 				minNext = job.State.NextRunAtMs

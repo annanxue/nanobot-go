@@ -1,6 +1,10 @@
 package providers
 
-import "context"
+import (
+	"context"
+
+	"github.com/sashabaranov/go-openai"
+)
 
 type ToolCallRequest struct {
 	ID        string                 `json:"id"`
@@ -20,14 +24,6 @@ func (r *LLMResponse) HasToolCalls() bool {
 	return len(r.ToolCalls) > 0
 }
 
-type Message struct {
-	Role       string            `json:"role"`
-	Content    string            `json:"content"`
-	ToolCalls  []ToolCallRequest `json:"tool_calls,omitempty"`
-	ToolCallID string            `json:"tool_call_id,omitempty"`
-	Name       string            `json:"name,omitempty"`
-}
-
 type ToolDefinition struct {
 	Type     string       `json:"type"`
 	Function ToolFunction `json:"function"`
@@ -40,6 +36,6 @@ type ToolFunction struct {
 }
 
 type LLMProvider interface {
-	Chat(ctx context.Context, messages []Message, tools []ToolDefinition, model string, maxTokens int, temperature float64) (*LLMResponse, error)
+	Chat(ctx context.Context, messages []openai.ChatCompletionMessage, tools []ToolDefinition, model string, maxTokens int, temperature float64) (*LLMResponse, error)
 	GetDefaultModel() string
 }

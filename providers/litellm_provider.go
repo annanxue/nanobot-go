@@ -1,250 +1,150 @@
 package providers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"strings"
+
+	"github.com/sashabaranov/go-openai"
+
+	"github.com/voocel/litellm"
+	"github.com/voocel/litellm/providers"
 )
 
 type LiteLLMProvider struct {
-	apiKey       string
-	apiBase      string
+	client       *litellm.Client
 	defaultModel string
-	extraHeaders map[string]string
-	gateway      *ProviderSpec
+	providerName string
 }
 
 func NewLiteLLMProvider(apiKey, apiBase, defaultModel string, extraHeaders map[string]string, providerName string) *LiteLLMProvider {
-	gateway := FindGateway(providerName, apiKey, apiBase)
+	gatewaySpec := FindGateway(providerName, apiKey, apiBase)
 
-	if apiKey != "" {
-		setupEnv(apiKey, apiBase, defaultModel, gateway)
+	providerCfg := providers.ProviderConfig{
+		APIKey:  apiKey,
+		BaseURL: apiBase,
+	}
+
+	var client *litellm.Client
+	var err error
+
+	if gatewaySpec != nil && gatewaySpec.LiteLLMPrefix != "" {
+		providerType := gatewaySpec.LiteLLMPrefix
+		client, err = litellm.NewWithProvider(providerType, providerCfg)
+	} else {
+		client, err = litellm.New(providers.NewOpenAI(providerCfg))
+	}
+
+	if err != nil {
+		panic(fmt.Sprintf("failed to create litellm client: %v", err))
 	}
 
 	return &LiteLLMProvider{
-		apiKey:       apiKey,
-		apiBase:      apiBase,
+		client:       client,
 		defaultModel: defaultModel,
-		extraHeaders: extraHeaders,
-		gateway:      gateway,
+		providerName: providerName,
 	}
 }
 
-func setupEnv(apiKey, apiBase, model string, gateway *ProviderSpec) {
-	spec := gateway
-	if spec == nil {
-		spec = FindByModel(model)
-	}
-	if spec == nil {
-		return
-	}
-
-	if gateway != nil {
-		os.Setenv(spec.EnvKey, apiKey)
-	} else {
-		if os.Getenv(spec.EnvKey) == "" {
-			os.Setenv(spec.EnvKey, apiKey)
-		}
-	}
-
-	effectiveBase := apiBase
-	if effectiveBase == "" {
-		effectiveBase = spec.DefaultAPIBase
-	}
-
-	for _, envExtra := range spec.EnvExtras {
-		resolved := strings.ReplaceAll(envExtra.Value, "{api_key}", apiKey)
-		resolved = strings.ReplaceAll(resolved, "{api_base}", effectiveBase)
-		if os.Getenv(envExtra.Name) == "" {
-			os.Setenv(envExtra.Name, resolved)
-		}
-	}
-}
-
-func (p *LiteLLMProvider) resolveModel(model string) string {
-	if p.gateway != nil {
-		prefix := p.gateway.LiteLLMPrefix
-		if p.gateway.StripModelPrefix {
-			parts := strings.Split(model, "/")
-			model = parts[len(parts)-1]
-		}
-		if prefix != "" && !strings.HasPrefix(model, prefix+"/") {
-			model = prefix + "/" + model
-		}
-		return model
-	}
-
-	spec := FindByModel(model)
-	if spec != nil && spec.LiteLLMPrefix != "" {
-		hasPrefix := false
-		for _, skip := range spec.SkipPrefixes {
-			if strings.HasPrefix(model, skip) {
-				hasPrefix = true
-				break
-			}
-		}
-		if !hasPrefix {
-			model = spec.LiteLLMPrefix + "/" + model
-		}
-	}
-
-	return model
-}
-
-func (p *LiteLLMProvider) applyModelOverrides(model string, kwargs map[string]interface{}) {
-	modelLower := strings.ToLower(model)
-	spec := FindByModel(model)
-	if spec == nil {
-		return
-	}
-
-	for _, override := range spec.ModelOverrides {
-		if strings.Contains(modelLower, override.Pattern) {
-			for k, v := range override.Overrides {
-				kwargs[k] = v
-			}
-			return
-		}
-	}
-}
-
-type ChatRequest struct {
-	Model        string            `json:"model"`
-	Messages     []Message         `json:"messages"`
-	MaxTokens    int               `json:"max_tokens,omitempty"`
-	Temperature  float64           `json:"temperature,omitempty"`
-	Tools        []ToolDefinition  `json:"tools,omitempty"`
-	ToolChoice   string            `json:"tool_choice,omitempty"`
-	APIKey       string            `json:"-"`
-	APIBase      string            `json:"-"`
-	ExtraHeaders map[string]string `json:"-"`
-}
-
-type ChatResponse struct {
-	Choices []struct {
-		Message struct {
-			Content          string            `json:"content"`
-			ToolCalls        []ToolCallRequest `json:"tool_calls,omitempty"`
-			ReasoningContent string            `json:"reasoning_content,omitempty"`
-		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage,omitempty"`
-}
-
-func (p *LiteLLMProvider) Chat(ctx context.Context, messages []Message, tools []ToolDefinition, model string, maxTokens int, temperature float64) (*LLMResponse, error) {
+func (p *LiteLLMProvider) Chat(ctx context.Context, messages []openai.ChatCompletionMessage, tools []ToolDefinition, model string, maxTokens int, temperature float64) (*LLMResponse, error) {
 	if model == "" {
 		model = p.defaultModel
 	}
-
-	// model = p.resolveModel(model)
-
-	reqBody := ChatRequest{
-		Model:       model,
-		Messages:    messages,
-		MaxTokens:   maxTokens,
-		Temperature: temperature,
+	if model == "deepseek" {
+		model = "deepseek-reasoner"
 	}
+	providerMsgs := convertOpenAIMessagesToLitellm(messages)
 
-	p.applyModelOverrides(model, map[string]interface{}{
-		"max_tokens":  maxTokens,
-		"temperature": temperature,
-	})
+	req := litellm.NewRequestWithMessages(model, providerMsgs,
+		litellm.WithMaxTokens(maxTokens),
+		litellm.WithTemperature(temperature),
+	)
 
 	if len(tools) > 0 {
-		reqBody.Tools = tools
-		reqBody.ToolChoice = "auto"
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	apiBase := p.apiBase
-	if apiBase == "" && p.gateway != nil {
-		apiBase = p.gateway.DefaultAPIBase
-	}
-	if apiBase == "" {
-		apiBase = "https://api.openai.com/v1"
-	}
-
-	url := fmt.Sprintf("%s/chat/completions", strings.TrimSuffix(apiBase, "/"))
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	}
-
-	for k, v := range p.extraHeaders {
-		req.Header.Set(k, v)
-	}
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return &LLMResponse{
-			Content:      fmt.Sprintf("Error calling LLM: HTTP %d - %s", resp.StatusCode, string(body)),
-			FinishReason: "error",
-		}, nil
-	}
-
-	var chatResp ChatResponse
-	if err := json.Unmarshal(body, &chatResp); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	if len(chatResp.Choices) == 0 {
-		return &LLMResponse{
-			Content:      "No response from LLM",
-			FinishReason: "stop",
-		}, nil
-	}
-
-	choice := chatResp.Choices[0]
-	response := &LLMResponse{
-		Content:          choice.Message.Content,
-		ToolCalls:        choice.Message.ToolCalls,
-		FinishReason:     choice.FinishReason,
-		ReasoningContent: choice.Message.ReasoningContent,
-	}
-
-	if chatResp.Usage.TotalTokens > 0 {
-		response.Usage = map[string]int{
-			"prompt_tokens":     chatResp.Usage.PromptTokens,
-			"completion_tokens": chatResp.Usage.CompletionTokens,
-			"total_tokens":      chatResp.Usage.TotalTokens,
+		litellmTools := make([]litellm.Tool, 0, len(tools))
+		for _, tool := range tools {
+			litellmTools = append(litellmTools, litellm.Tool{
+				Type: "function",
+				Function: providers.FunctionDef{
+					Name:        tool.Function.Name,
+					Description: tool.Function.Description,
+					Parameters:  tool.Function.Parameters,
+				},
+			})
 		}
+		req.Tools = litellmTools
+		req.ToolChoice = "auto"
 	}
 
-	return response, nil
+	resp, err := p.client.Chat(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToLLMResponse(resp), nil
 }
 
 func (p *LiteLLMProvider) GetDefaultModel() string {
 	return p.defaultModel
+}
+
+func convertOpenAIMessagesToLitellm(messages []openai.ChatCompletionMessage) []providers.Message {
+	result := make([]providers.Message, 0, len(messages))
+	for _, msg := range messages {
+		litellmMsg := providers.Message{
+			Role:       msg.Role,
+			Content:    msg.Content,
+			ToolCallID: msg.ToolCallID,
+		}
+
+		if len(msg.ToolCalls) > 0 {
+			toolCalls := make([]providers.ToolCall, 0, len(msg.ToolCalls))
+			for _, tc := range msg.ToolCalls {
+				toolCalls = append(toolCalls, providers.ToolCall{
+					ID:   tc.ID,
+					Type: string(tc.Type),
+					Function: providers.FunctionCall{
+						Name:      tc.Function.Name,
+						Arguments: tc.Function.Arguments,
+					},
+				})
+			}
+			litellmMsg.ToolCalls = toolCalls
+		}
+
+		result = append(result, litellmMsg)
+	}
+	return result
+}
+
+func convertToLLMResponse(resp *providers.Response) *LLMResponse {
+	toolCalls := make([]ToolCallRequest, 0, len(resp.ToolCalls))
+	for _, tc := range resp.ToolCalls {
+		argsMap := make(map[string]interface{})
+		if tc.Function.Arguments != "" {
+			json.Unmarshal([]byte(tc.Function.Arguments), &argsMap)
+		}
+		toolCalls = append(toolCalls, ToolCallRequest{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: argsMap,
+		})
+	}
+
+	var reasoningContent string
+	if resp.Reasoning != nil {
+		reasoningContent = resp.Reasoning.Content
+	}
+
+	return &LLMResponse{
+		Content:          resp.Content,
+		ToolCalls:        toolCalls,
+		FinishReason:     resp.FinishReason,
+		ReasoningContent: reasoningContent,
+		Usage: map[string]int{
+			"prompt_tokens":     resp.Usage.PromptTokens,
+			"completion_tokens": resp.Usage.CompletionTokens,
+			"total_tokens":      resp.Usage.TotalTokens,
+		},
+	}
 }

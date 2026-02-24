@@ -50,7 +50,7 @@ func (t *WebSearchTool) Parameters() map[string]interface{} {
 				"description": "Search query",
 			},
 			"count": map[string]interface{}{
-				"type":        "integer",
+				"type":        "number",
 				"description": "Results (1-10)",
 				"minimum":     1,
 				"maximum":     10,
@@ -181,7 +181,7 @@ func (t *WebFetchTool) Parameters() map[string]interface{} {
 				"description": "Output format",
 			},
 			"maxChars": map[string]interface{}{
-				"type":        "integer",
+				"type":        "number",
 				"minimum":     100,
 				"description": "Maximum characters to return",
 			},
