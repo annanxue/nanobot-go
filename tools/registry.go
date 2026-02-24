@@ -40,6 +40,14 @@ func (tr *ToolRegistry) Has(name string) bool {
 	return exists
 }
 
+func (tr *ToolRegistry) SetToolContext(channel, chatID string) {
+	for _, tool := range tr.tools {
+		if setter, ok := tool.(interface{ SetContext(channel, chatID string) }); ok {
+			setter.SetContext(channel, chatID)
+		}
+	}
+}
+
 func (tr *ToolRegistry) GetDefinitions() []map[string]interface{} {
 	definitions := make([]map[string]interface{}, 0, len(tr.tools))
 	for _, tool := range tr.tools {
@@ -67,7 +75,6 @@ func (tr *ToolRegistry) Execute(ctx context.Context, name string, params map[str
 
 	return tool.Execute(ctx, params)
 }
-
 func (tr *ToolRegistry) validateParams(tool Tool, params map[string]interface{}) error {
 	schema := tool.Parameters()
 	if schemaType, ok := schema["type"].(string); !ok || schemaType != "object" {
@@ -157,3 +164,4 @@ func (tr *ToolRegistry) ToolNames() []string {
 func (tr *ToolRegistry) Len() int {
 	return len(tr.tools)
 }
+

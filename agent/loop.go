@@ -246,6 +246,9 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 
 			messages = al.context.AddAssistantMessage(messages, response.Content, toolCalls, response.ReasoningContent)
 
+			// Inject channel and chatID into all tools that implement SetContext before calling Execute
+			al.toolsRegistry.SetToolContext(channel, chatID)
+
 			for _, toolCall := range response.ToolCalls {
 				argsJSON, _ := json.Marshal(toolCall.Arguments)
 				logrus.Infof("Tool call: %s(%s)", toolCall.Name, string(argsJSON)[:min(200, len(argsJSON))])
@@ -274,11 +277,4 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 	logrus.Infof("Response to %s:%s: %s", channel, chatID, preview)
 
 	return finalContent, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

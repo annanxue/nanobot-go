@@ -106,7 +106,7 @@ var PROVIDERS = []ProviderSpec{
 		IsGateway:           false,
 		IsLocal:             false,
 		DetectByKeyPrefix:   "",
-		DetectByBaseKeyword: "",
+		DetectByBaseKeyword: "deepseek",
 		DefaultAPIBase:      "",
 		StripModelPrefix:    false,
 		ModelOverrides:      []ModelOverride{},

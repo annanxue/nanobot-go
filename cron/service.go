@@ -2,9 +2,10 @@ package cron
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -28,21 +29,24 @@ type command struct {
 }
 
 type CronService struct {
-	storePath string
-	onJob     func(*CronJob) (string, error)
-	store     *CronStore
-	cron      *cron.Cron
-	running   atomic.Bool
-	cmdCh     chan command
-	stopCh    chan struct{}
+	storePath  string
+	onJob      func(*CronJob) (string, error)
+	store      *CronStore
+	cron       *cron.Cron
+	running    bool
+	cmdCh      chan command
+	stopCh     chan struct{}
+	jobEntries map[string]cron.EntryID
+	entriesMu  sync.Mutex
 }
 
 func NewCronService(storePath string) *CronService {
 	cs := &CronService{
-		storePath: storePath,
-		cron:      cron.New(cron.WithSeconds()),
-		cmdCh:     make(chan command, 100),
-		stopCh:    make(chan struct{}),
+		storePath:  storePath,
+		cron:       cron.New(cron.WithSeconds()),
+		cmdCh:      make(chan command, 100),
+		stopCh:     make(chan struct{}),
+		jobEntries: make(map[string]cron.EntryID),
 	}
 	cs.doLoadStore()
 	go cs.run()
@@ -154,31 +158,89 @@ func (cs *CronService) doSaveStore() error {
 }
 
 func (cs *CronService) Start() error {
-	if cs.running.Load() {
+	if cs.running {
 		return nil
 	}
 
 	cs.doLoadStore()
 	cs.doRecomputeNextRuns()
+	cs.scheduleAllJobs()
+
 	err := cs.doSaveStore()
 
 	cs.cron.Start()
 	logrus.Infof("Cron service started with %d jobs", len(cs.store.Jobs))
-	cs.running.Store(true)
+	cs.running = true
 
 	return err
 }
 
 func (cs *CronService) Stop() {
-	if !cs.running.Load() {
+	if !cs.running {
 		return
 	}
 
 	ctx := cs.cron.Stop()
 	<-ctx.Done()
-	cs.running.Store(false)
+	cs.running = false
 
 	close(cs.stopCh)
+}
+
+func (cs *CronService) scheduleAllJobs() {
+	cs.entriesMu.Lock()
+	defer cs.entriesMu.Unlock()
+
+	for _, job := range cs.store.Jobs {
+		if job.Enabled {
+			cs.scheduleJob(&job)
+		}
+	}
+}
+
+func (cs *CronService) scheduleJob(job *CronJob) {
+	var spec string
+	switch job.Schedule.Kind {
+	case ScheduleKindEvery:
+		if job.Schedule.EveryMs != nil {
+			seconds := *job.Schedule.EveryMs / 1000
+			spec = fmt.Sprintf("@every %ds", seconds)
+		}
+	case ScheduleKindCron:
+		if job.Schedule.Expr != "" {
+			spec = job.Schedule.Expr
+		}
+	case ScheduleKindAt:
+		if job.Schedule.AtMs != nil {
+			atTime := time.UnixMilli(int64(*job.Schedule.AtMs))
+			delay := time.Until(atTime)
+			if delay > 0 {
+				spec = fmt.Sprintf("@every %s", delay)
+			}
+		}
+	}
+
+	if spec != "" {
+		entryID, err := cs.cron.AddFunc(spec, func() {
+			cs.executeJob(job)
+		})
+		if err != nil {
+			logrus.Errorf("Failed to schedule job %s: %v", job.ID, err)
+			return
+		}
+		cs.jobEntries[job.ID] = entryID
+		logrus.Infof("Scheduled job %s with spec %s", job.ID, spec)
+	}
+}
+
+func (cs *CronService) unscheduleJob(jobID string) {
+	cs.entriesMu.Lock()
+	defer cs.entriesMu.Unlock()
+
+	if entryID, ok := cs.jobEntries[jobID]; ok {
+		cs.cron.Remove(entryID)
+		delete(cs.jobEntries, jobID)
+	}
 }
 
 func (cs *CronService) recomputeNextRuns() {
@@ -293,6 +355,10 @@ func (cs *CronService) doAddJob(name string, schedule CronSchedule, message stri
 
 	cs.store.Jobs = append(cs.store.Jobs, job)
 
+	if cs.running {
+		cs.scheduleJob(&job)
+	}
+
 	logrus.Infof("Cron: added job '%s' (%s)", name, job.ID)
 
 	err := cs.doSaveStore()
@@ -309,6 +375,8 @@ func (cs *CronService) RemoveJob(jobID string) bool {
 }
 
 func (cs *CronService) doRemoveJob(jobID string) bool {
+	cs.unscheduleJob(jobID)
+
 	before := len(cs.store.Jobs)
 	var jobs []CronJob
 	for _, job := range cs.store.Jobs {
@@ -342,12 +410,18 @@ func (cs *CronService) doEnableJob(jobID string, enabled bool, resultCh chan int
 		if cs.store.Jobs[i].ID == jobID {
 			cs.store.Jobs[i].Enabled = enabled
 			cs.store.Jobs[i].UpdatedAtMs = int(time.Now().UnixMilli())
+
 			if enabled {
 				now := time.Now().UnixMilli()
 				cs.store.Jobs[i].State.NextRunAtMs = cs.computeNextRun(&cs.store.Jobs[i].Schedule, now)
+				if cs.running {
+					cs.scheduleJob(&cs.store.Jobs[i])
+				}
 			} else {
 				cs.store.Jobs[i].State.NextRunAtMs = nil
+				cs.unscheduleJob(jobID)
 			}
+
 			cs.doSaveStore()
 			job := cs.store.Jobs[i]
 			resultCh <- &job
@@ -443,7 +517,7 @@ func (cs *CronService) Status() map[string]interface{} {
 
 func (cs *CronService) doStatus() map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":         cs.running.Load(),
+		"enabled":         cs.running,
 		"jobs":            len(cs.store.Jobs),
 		"next_wake_at_ms": cs.getNextWakeMs(),
 	}

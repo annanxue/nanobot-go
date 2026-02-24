@@ -94,7 +94,7 @@ func (ct *CronTool) addJob(params map[string]interface{}) (string, error) {
 
 	var schedule cron.CronSchedule
 
-	if everySeconds, ok := params["every_seconds"].(int); ok {
+	if everySeconds, ok := params["every_seconds"].(float64); ok {
 		everyMs := int64(everySeconds * 1000)
 		schedule = cron.CronSchedule{
 			Kind:    cron.ScheduleKindEvery,
@@ -109,8 +109,13 @@ func (ct *CronTool) addJob(params map[string]interface{}) (string, error) {
 		return "", fmt.Errorf("either every_seconds or cron_expr is required")
 	}
 
+	jobName := message
+	if len(message) > 30 {
+		jobName = message[:30]
+	}
+
 	job, err := ct.cronService.AddJob(
-		message[:30],
+		jobName,
 		schedule,
 		message,
 		true,

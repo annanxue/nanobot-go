@@ -116,7 +116,6 @@ func convertOpenAIMessagesToLitellm(messages []openai.ChatCompletionMessage) []p
 	}
 	return result
 }
-
 func convertToLLMResponse(resp *providers.Response) *LLMResponse {
 	toolCalls := make([]ToolCallRequest, 0, len(resp.ToolCalls))
 	for _, tc := range resp.ToolCalls {
@@ -148,3 +147,4 @@ func convertToLLMResponse(resp *providers.Response) *LLMResponse {
 		},
 	}
 }
+

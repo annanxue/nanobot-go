@@ -136,9 +136,9 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	// if err := cronService.Start(); err != nil {
-	// 	return fmt.Errorf("failed to start cron service: %w", err)
-	// }
+	if err := cronService.Start(); err != nil {
+		return fmt.Errorf("failed to start cron service: %w", err)
+	}
 
 	if err := heartbeatService.Start(); err != nil {
 		return fmt.Errorf("failed to start heartbeat service: %w", err)

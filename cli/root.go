@@ -84,7 +84,7 @@ func makeProvider(cfg *config.Config) (providers.LLMProvider, error) {
 	if model == "deepseek" {
 		model = "deepseek-reasoner"
 	}
-	return providers.NewLiteLLMProvider(
+	return providers.NewOpenAIProvider( // litellm_provider对于deepseek的role:tool支持有问题，content会改成数组，deepseek不支持
 		providerCfg.APIKey,
 		providerCfg.APIBase,
 		model,
