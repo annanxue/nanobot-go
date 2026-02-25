@@ -1,4 +1,4 @@
-package main
+package providers
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestLiteLLM_Chat(t *testing.T) {
-	godotenv.Load()
+	godotenv.Load("../.env")
 
 	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	if apiKey == "" {
