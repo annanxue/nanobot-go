@@ -110,6 +110,12 @@ func (al *AgentLoop) registerDefaultTools() {
 	}, "", "")
 	al.toolsRegistry.Register(messageTool)
 
+	screenshotTool := tools.NewScreenshotTool(func(msg *bus.OutboundMessage) error {
+		al.bus.PublishOutbound(msg)
+		return nil
+	}, "", "", al.workspace)
+	al.toolsRegistry.Register(screenshotTool)
+
 	spawnTool := NewSpawnTool(al.subagents)
 	al.toolsRegistry.Register(spawnTool)
 

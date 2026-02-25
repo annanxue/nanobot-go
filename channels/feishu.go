@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -139,6 +140,11 @@ func (fc *FeishuChannel) Send(ctx context.Context, msg *bus.OutboundMessage) err
 		receiveIDType = "open_id"
 	}
 
+	// Handle image message
+	if len(msg.Media) > 0 {
+		return fc.sendImageMessage(ctx, msg, receiveIDType)
+	}
+
 	// Build card with markdown + table support
 	elements := fc.buildCardElements(msg.Content)
 	card := map[string]interface{}{
@@ -180,6 +186,64 @@ func (fc *FeishuChannel) Send(ctx context.Context, msg *bus.OutboundMessage) err
 	}
 
 	logrus.Debugf("Feishu message sent to %s", msg.ChatID)
+	return nil
+}
+
+// sendImageMessage sends an image message through Feishu
+func (fc *FeishuChannel) sendImageMessage(ctx context.Context, msg *bus.OutboundMessage, receiveIDType string) error {
+	imagePath := msg.Media[0]
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return fmt.Errorf("failed to open image file: %w", err)
+	}
+	defer file.Close()
+
+	imageReq := larkim.NewCreateImageReqBuilder().
+		Body(larkim.NewCreateImageReqBodyBuilder().
+			ImageType("message").
+			Image(file).
+			Build()).
+		Build()
+
+	imageResp, err := fc.client.Im.V1.Image.Create(ctx, imageReq)
+	if err != nil {
+		return fmt.Errorf("failed to upload image: %w", err)
+	}
+
+	if !imageResp.Success() {
+		return fmt.Errorf("failed to upload image: code=%d, msg=%s", imageResp.Code, imageResp.Msg)
+	}
+
+	imageKey := imageResp.Data.ImageKey
+
+	messageImage := larkim.MessageImage{ImageKey: *imageKey}
+	content, err := messageImage.String()
+	if err != nil {
+		return fmt.Errorf("failed to create image content: %w", err)
+	}
+
+	reqBody := larkim.NewCreateMessageReqBodyBuilder().
+		ReceiveId(msg.ChatID).
+		MsgType("image").
+		Content(content).
+		Build()
+
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(receiveIDType).
+		Body(reqBody).
+		Build()
+
+	resp, err := fc.client.Im.V1.Message.Create(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to send image message: %w", err)
+	}
+
+	if !resp.Success() {
+		return fmt.Errorf("failed to send image message: code=%d, msg=%s", resp.Code, resp.Msg)
+	}
+
+	logrus.Debugf("Feishu image sent to %s", msg.ChatID)
 	return nil
 }
 
