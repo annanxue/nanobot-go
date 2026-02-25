@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -285,12 +286,12 @@ func (t *WebFetchTool) toMarkdown(htmlStr string) string {
 		return m
 	})
 
-	headingRe := regexp.MustCompile(`(?i)<h([1-6])[^>]*>([\s\S]*?)</h\1>`)
+	headingRe := regexp.MustCompile(`(?i)<h([1-6])[^>]*>([\s\S]*?)</h[1-6]>`)
 	text = headingRe.ReplaceAllStringFunc(text, func(m string) string {
 		matches := headingRe.FindStringSubmatch(m)
 		if len(matches) > 2 {
-			level := matches[1]
-			return fmt.Sprintf("\n%s %s\n", strings.Repeat("#", int(level[0]-'0')), stripTags(matches[2]))
+			level, _ := strconv.Atoi(matches[1])
+			return fmt.Sprintf("\n%s %s\n", strings.Repeat("#", level), stripTags(matches[2]))
 		}
 		return m
 	})
