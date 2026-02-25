@@ -78,7 +78,7 @@ func makeProvider(cfg *config.Config) (providers.LLMProvider, error) {
 	providerName := getProviderNameFromModel(model)
 	providerCfg := getProviderConfig(cfg, model)
 
-	if providerCfg == nil || providerCfg.APIKey == "" {
+	if providerCfg == nil {
 		return nil, fmt.Errorf("no API key configured for provider")
 	}
 	if model == "deepseek" {
@@ -121,6 +121,8 @@ func getProviderConfig(cfg *config.Config, model string) *config.ProviderConfig 
 		return &cfg.Providers.MiniMax
 	case "aihubmix":
 		return &cfg.Providers.AiHubMix
+	case "ollama":
+		return &cfg.Providers.Ollama
 	default:
 		return &cfg.Providers.OpenAI
 	}
@@ -132,15 +134,16 @@ func getProviderNameFromModel(model string) string {
 	}
 
 	prefixes := map[string]string{
-		"claude":   "anthropic",
-		"gpt":      "openai",
-		"deepseek": "deepseek",
-		"llama":    "groq",
-		"glm":      "zhipu",
-		"qwen":     "dashscope",
-		"gemini":   "gemini",
-		"moonshot": "moonshot",
-		"minimax":  "minimax",
+		"claude":            "anthropic",
+		"gpt":               "openai",
+		"deepseek-reasoner": "deepseek",
+		"llama":             "groq",
+		"glm":               "zhipu",
+		// "qwen":        "dashscope",
+		"gemini":      "gemini",
+		"moonshot":    "moonshot",
+		"minimax":     "minimax",
+		"qwen3-vl:8b": "ollama",
 	}
 
 	for prefix, provider := range prefixes {

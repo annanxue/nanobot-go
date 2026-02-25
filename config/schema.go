@@ -162,6 +162,7 @@ type ProvidersConfig struct {
 	Moonshot   ProviderConfig `json:"moonshot" mapstructure:"moonshot"`
 	MiniMax    ProviderConfig `json:"minimax" mapstructure:"minimax"`
 	AiHubMix   ProviderConfig `json:"aihubmix" mapstructure:"aihubmix"`
+	Ollama     ProviderConfig `json:"ollama" mapstructure:"ollama"`
 }
 
 type GatewayConfig struct {
