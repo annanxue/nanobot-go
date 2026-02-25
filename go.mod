@@ -3,6 +3,8 @@ module github.com/nanobotgo
 go 1.25
 
 require (
+	github.com/joho/godotenv v1.5.1
+	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/larksuite/oapi-sdk-go/v3 v3.5.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sashabaranov/go-openai v1.41.2
@@ -21,8 +23,6 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
-	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
