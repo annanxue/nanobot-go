@@ -113,10 +113,12 @@ type SlackConfig struct {
 }
 
 type QQConfig struct {
-	Enabled   bool     `json:"enabled" mapstructure:"enabled"`
-	AppID     string   `json:"appId" mapstructure:"appId"`
-	Secret    string   `json:"secret" mapstructure:"secret"`
-	AllowFrom []string `json:"allowFrom" mapstructure:"allowFrom"`
+	Enabled    bool     `json:"enabled" mapstructure:"enabled"`
+	AppID      string   `json:"appId" mapstructure:"appId"`
+	Secret     string   `json:"secret" mapstructure:"secret"`
+	AllowFrom  []string `json:"allowFrom" mapstructure:"allowFrom"`
+	WebhookURL string   `json:"webhookUrl" mapstructure:"webhookUrl"`
+	SendURL    string   `json:"sendUrl" mapstructure:"sendUrl"`
 }
 
 type ChannelsConfig struct {

@@ -238,24 +238,37 @@ func (sm *SessionManager) ListSessions() []SessionInfo {
 		}
 
 		path := filepath.Join(sm.sessionsDir, file.Name())
-		content, err := os.ReadFile(path)
+		f, err := os.Open(path)
 		if err != nil {
 			continue
 		}
 
-		var data map[string]interface{}
-		if err := json.Unmarshal(content, &data); err != nil {
-			continue
-		}
+		var createdAt, updatedAt time.Time
+		decoder := json.NewDecoder(f)
+		for decoder.More() {
+			var data map[string]interface{}
+			if err := decoder.Decode(&data); err != nil {
+				continue
+			}
 
-		if typ, ok := data["_type"].(string); ok && typ == "metadata" {
-			sessions = append(sessions, SessionInfo{
-				Key:       strings.ReplaceAll(file.Name()[:len(file.Name())-6], "_", ":"),
-				CreatedAt: data["created_at"].(string),
-				UpdatedAt: data["updated_at"].(string),
-				Path:      path,
-			})
+			if typ, ok := data["_type"].(string); ok && typ == "metadata" {
+				if ct, ok := data["created_at"].(string); ok {
+					createdAt, _ = time.Parse(time.RFC3339, ct)
+				}
+				if ut, ok := data["updated_at"].(string); ok {
+					updatedAt, _ = time.Parse(time.RFC3339, ut)
+				}
+				break
+			}
 		}
+		f.Close()
+
+		sessions = append(sessions, SessionInfo{
+			Key:       strings.ReplaceAll(file.Name()[:len(file.Name())-6], "_", ":"),
+			CreatedAt: createdAt.Format(time.RFC3339),
+			UpdatedAt: updatedAt.Format(time.RFC3339),
+			Path:      path,
+		})
 	}
 
 	return sessions

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nanobot 配置管理</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .sidebar {
+            width: 200px;
+            background: #2c3e50;
+            min-height: 100vh;
+            padding: 20px 0;
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+        .sidebar-title {
+            color: #ecf0f1;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 10px;
+        }
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .sidebar-menu li {
+            padding: 0;
+        }
+        .sidebar-menu a {
+            display: block;
+            color: #bdc3c7;
+            padding: 12px 20px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background: #34495e;
+            color: #fff;
+            border-left: 3px solid #3498db;
+        }
+        .main-content {
+            margin-left: 200px;
+            padding: 20px;
+        }
+        .section-content {
+            display: none;
+        }
+        .section-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-title">📋 配置列表</div>
+        <ul class="sidebar-menu">
+            <li><a href="#" class="active" onclick="showSection('agent')">🤖 Agent 默认配置</a></li>
+            <li><a href="#" onclick="showSection('provider')">🔑 Provider 配置</a></li>
+            <li><a href="#" onclick="showSection('feishu')">📱 飞书配置</a></li>
+            <li><a href="#" onclick="showSection('mochat')">💬 MoChat 配置</a></li>
+            <li><a href="#" onclick="showSection('cron')">⏰ Cron 任务</a></li>
+            <li><a href="#" onclick="showSection('sessions')">💾 Session 列表</a></li>
+        </ul>
+    </div>
+    
+    <div class="main-content">
+        <div class="header">
+            <h1>🤖 Nanobot 配置管理</h1>
+        </div>
+        
+        <div class="container">
+            {{if .Message}}
+            <div class="message {{if contains .Message "成功"}}message-success{{else}}message-error{{end}}">
+                {{.Message}}
+            </div>
+            {{end}}
+            
+            <div class="card">
+                <div class="card-body">
+                    <div id="agent-section" class="section-content active">
+                        <div class="section">
+                            <h3 class="section-title">Agent 默认配置</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>默认工作目录</label>
+                                    <input type="text" id="workspace" placeholder=".">
+                                </div>
+                                <div class="form-group">
+                                    <label>默认 Provider</label>
+                                    <select id="provider" onchange="onProviderChange()">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="deepseek">DeepSeek</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="dashscope">DashScope (阿里云)</option>
+                                        <option value="glm">GLM</option>
+                                        <option value="groq">Groq</option>
+                                        <option value="zhipu">智谱</option>
+                                        <option value="moonshot">月之暗面</option>
+                                        <option value="minimax">MiniMax</option>
+                                        <option value="qwen">Qwen</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Max Tokens</label>
+                                    <input type="number" id="maxTokens">
+                                </div>
+                                <div class="form-group">
+                                    <label>Temperature</label>
+                                    <input type="number" id="temperature" step="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Tool Iterations</label>
+                                    <input type="number" id="maxToolIterations">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="provider-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">Provider 配置</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>选择 Provider</label>
+                                    <select id="providerSelect" onchange="onProviderChange()">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="deepseek">DeepSeek</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="dashscope">DashScope (阿里云)</option>
+                                        <option value="glm">GLM</option>
+                                        <option value="groq">Groq</option>
+                                        <option value="zhipu">智谱</option>
+                                        <option value="moonshot">月之暗面</option>
+                                        <option value="minimax">MiniMax</option>
+                                        <option value="qwen">Qwen</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Model</label>
+                                    <input type="text" id="providerModel" placeholder="e.g., gpt-4o">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key</label>
+                                    <input type="password" id="providerApiKey">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>API Base</label>
+                                    <input type="text" id="providerApiBase" placeholder="e.g., https://api.openai.com/v1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="feishu-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">飞书配置</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>启用飞书</label>
+                                    <select id="feishuEnabled">
+                                        <option value="false">禁用</option>
+                                        <option value="true">启用</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>App ID</label>
+                                    <input type="text" id="feishuAppId">
+                                </div>
+                                <div class="form-group">
+                                    <label>App Secret</label>
+                                    <input type="password" id="feishuAppSecret">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="mochat-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">MoChat 配置</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>启用 MoChat</label>
+                                    <select id="mochatEnabled">
+                                        <option value="false">禁用</option>
+                                        <option value="true">启用</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Base URL</label>
+                                    <input type="text" id="mochatBaseUrl" placeholder="http://localhost:8080">
+                                </div>
+                                <div class="form-group">
+                                    <label>Socket URL</label>
+                                    <input type="text" id="mochatSocketUrl" placeholder="ws://localhost:8080/socket.io">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="cron-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">⏰ Cron 任务列表</h3>
+                            <div id="cron-list" class="list-container">
+                                <div class="loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="sessions-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">💾 Session 列表</h3>
+                            <div id="sessions-list" class="list-container">
+                                <div class="loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="saveVisualConfig()">保存配置</button>
+                        <button class="btn btn-success" onclick="restartService()">重启服务</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <span>配置文件: {{.Title}}</span>
+            <span id="status">就绪</span>
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>

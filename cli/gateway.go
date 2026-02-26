@@ -8,6 +8,8 @@ import (
 	"syscall"
 
 	"github.com/nanobotgo/bus"
+	"github.com/nanobotgo/config"
+	"github.com/nanobotgo/configui"
 	"github.com/nanobotgo/cron"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -117,6 +119,19 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("✓ Heartbeat: every 30m")
+
+	go func() {
+		loader := config.NewLoader(configPath)
+		cfg, err := loader.Load()
+		if err != nil {
+			logrus.Warnf("ConfigUI: Failed to load config: %v", err)
+			return
+		}
+		configUIServer := configui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, ":18080")
+		if err := configUIServer.Start(); err != nil {
+			logrus.Warnf("Config UI server error: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

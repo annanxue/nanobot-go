@@ -62,6 +62,18 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
+func getConfigPath() string {
+	loader := config.NewLoader(configPath)
+	path := loader.GetConfigPath()
+	if path == "" {
+		if configPath != "" {
+			return configPath
+		}
+		return "config.json"
+	}
+	return path
+}
+
 func setupLogging(verbose bool) {
 	if verbose {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -99,33 +111,6 @@ func getProviderConfig(cfg *config.Config, providerName string) *config.Provider
 		return &config.ProviderConfig{}
 	}
 	return &openAIConfig
-}
-
-func getProviderNameFromModel(model string) string {
-	if len(model) == 0 {
-		return "openai"
-	}
-
-	prefixes := map[string]string{
-		"claude":            "anthropic",
-		"gpt":               "openai",
-		"deepseek-reasoner": "deepseek",
-		"llama":             "groq",
-		"glm":               "zhipu",
-		// "qwen":        "dashscope",
-		"gemini":      "gemini",
-		"moonshot":    "moonshot",
-		"minimax":     "minimax",
-		"qwen3-vl:8b": "ollama",
-	}
-
-	for prefix, provider := range prefixes {
-		if len(model) >= len(prefix) && model[:len(prefix)] == prefix {
-			return provider
-		}
-	}
-
-	return "openai"
 }
 
 func setupSignalHandler(cancel context.CancelFunc) {

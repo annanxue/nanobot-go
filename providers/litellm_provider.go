@@ -50,9 +50,6 @@ func (p *LiteLLMProvider) Chat(ctx context.Context, messages []openai.ChatComple
 	if model == "" {
 		model = p.defaultModel
 	}
-	if model == "deepseek" {
-		model = "deepseek-reasoner"
-	}
 	providerMsgs := convertOpenAIMessagesToLitellm(messages)
 
 	req := litellm.NewRequestWithMessages(model, providerMsgs,
@@ -147,4 +144,3 @@ func convertToLLMResponse(resp *providers.Response) *LLMResponse {
 		},
 	}
 }
-

@@ -29,10 +29,6 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []openai.ChatComplet
 	if model == "" {
 		model = p.defaultModel
 	}
-	if model == "deepseek" {
-		model = "deepseek-reasoner"
-	}
-
 	var openaiTools []openai.Tool
 	if len(tools) > 0 {
 		openaiTools = make([]openai.Tool, 0, len(tools))
