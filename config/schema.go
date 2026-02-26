@@ -133,7 +133,7 @@ type ChannelsConfig struct {
 
 type AgentDefaults struct {
 	Workspace         string  `json:"workspace" mapstructure:"workspace"`
-	Model             string  `json:"model" mapstructure:"model"`
+	Provider          string  `json:"provider" mapstructure:"provider"`
 	MaxTokens         int     `json:"maxTokens" mapstructure:"maxTokens"`
 	Temperature       float64 `json:"temperature" mapstructure:"temperature"`
 	MaxToolIterations int     `json:"maxToolIterations" mapstructure:"maxToolIterations"`
@@ -144,25 +144,10 @@ type AgentsConfig struct {
 }
 
 type ProviderConfig struct {
+	Model        string            `json:"model" mapstructure:"model"`
 	APIKey       string            `json:"apiKey" mapstructure:"apiKey"`
 	APIBase      string            `json:"apiBase" mapstructure:"apiBase"`
 	ExtraHeaders map[string]string `json:"extraHeaders" mapstructure:"extraHeaders"`
-}
-
-type ProvidersConfig struct {
-	Anthropic  ProviderConfig `json:"anthropic" mapstructure:"anthropic"`
-	OpenAI     ProviderConfig `json:"openai" mapstructure:"openai"`
-	OpenRouter ProviderConfig `json:"openrouter" mapstructure:"openrouter"`
-	DeepSeek   ProviderConfig `json:"deepseek" mapstructure:"deepseek"`
-	Groq       ProviderConfig `json:"groq" mapstructure:"groq"`
-	Zhipu      ProviderConfig `json:"zhipu" mapstructure:"zhipu"`
-	DashScope  ProviderConfig `json:"dashscope" mapstructure:"dashscope"`
-	VLLM       ProviderConfig `json:"vllm" mapstructure:"vllm"`
-	Gemini     ProviderConfig `json:"gemini" mapstructure:"gemini"`
-	Moonshot   ProviderConfig `json:"moonshot" mapstructure:"moonshot"`
-	MiniMax    ProviderConfig `json:"minimax" mapstructure:"minimax"`
-	AiHubMix   ProviderConfig `json:"aihubmix" mapstructure:"aihubmix"`
-	Ollama     ProviderConfig `json:"ollama" mapstructure:"ollama"`
 }
 
 type GatewayConfig struct {
@@ -190,9 +175,9 @@ type ToolsConfig struct {
 }
 
 type Config struct {
-	Agents    AgentsConfig    `json:"agents" mapstructure:"agents"`
-	Channels  ChannelsConfig  `json:"channels" mapstructure:"channels"`
-	Providers ProvidersConfig `json:"providers" mapstructure:"providers"`
-	Gateway   GatewayConfig   `json:"gateway" mapstructure:"gateway"`
-	Tools     ToolsConfig     `json:"tools" mapstructure:"tools"`
+	Agents    AgentsConfig              `json:"agents" mapstructure:"agents"`
+	Channels  ChannelsConfig            `json:"channels" mapstructure:"channels"`
+	Providers map[string]ProviderConfig `json:"providers" mapstructure:"providers"`
+	Gateway   GatewayConfig             `json:"gateway" mapstructure:"gateway"`
+	Tools     ToolsConfig               `json:"tools" mapstructure:"tools"`
 }

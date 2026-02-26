@@ -74,58 +74,31 @@ func setupLogging(verbose bool) {
 }
 
 func makeProvider(cfg *config.Config) (providers.LLMProvider, error) {
-	model := cfg.Agents.Defaults.Model
-	providerName := getProviderNameFromModel(model)
-	providerCfg := getProviderConfig(cfg, model)
+	provider := cfg.Agents.Defaults.Provider
+	providerCfg := getProviderConfig(cfg, provider)
 
 	if providerCfg == nil {
 		return nil, fmt.Errorf("no API key configured for provider")
 	}
-	if model == "deepseek" {
-		model = "deepseek-reasoner"
-	}
+
 	return providers.NewOpenAIProvider( // litellm_provider对于deepseek的role:tool支持有问题，content会改成数组，deepseek不支持
 		providerCfg.APIKey,
 		providerCfg.APIBase,
-		model,
+		providerCfg.Model,
 		providerCfg.ExtraHeaders,
-		providerName,
+		cfg.Agents.Defaults.Provider,
 	), nil
 }
 
-func getProviderConfig(cfg *config.Config, model string) *config.ProviderConfig {
-	providerName := getProviderNameFromModel(model)
-
-	switch providerName {
-	case "anthropic":
-		return &cfg.Providers.Anthropic
-	case "openai":
-		return &cfg.Providers.OpenAI
-	case "openrouter":
-		return &cfg.Providers.OpenRouter
-	case "deepseek":
-		return &cfg.Providers.DeepSeek
-	case "groq":
-		return &cfg.Providers.Groq
-	case "zhipu":
-		return &cfg.Providers.Zhipu
-	case "dashscope":
-		return &cfg.Providers.DashScope
-	case "vllm":
-		return &cfg.Providers.VLLM
-	case "gemini":
-		return &cfg.Providers.Gemini
-	case "moonshot":
-		return &cfg.Providers.Moonshot
-	case "minimax":
-		return &cfg.Providers.MiniMax
-	case "aihubmix":
-		return &cfg.Providers.AiHubMix
-	case "ollama":
-		return &cfg.Providers.Ollama
-	default:
-		return &cfg.Providers.OpenAI
+func getProviderConfig(cfg *config.Config, providerName string) *config.ProviderConfig {
+	if providerCfg, ok := cfg.Providers[providerName]; ok {
+		return &providerCfg
 	}
+	openAIConfig, ok := cfg.Providers["openai"]
+	if !ok {
+		return &config.ProviderConfig{}
+	}
+	return &openAIConfig
 }
 
 func getProviderNameFromModel(model string) string {
@@ -282,7 +255,7 @@ func createAgentLoop(
 		bus,
 		provider,
 		cfg.Agents.Defaults.Workspace,
-		cfg.Agents.Defaults.Model,
+		provider.GetDefaultModel(),
 		cfg.Agents.Defaults.MaxToolIterations,
 		cfg.Tools.Web.Search.APIKey,
 		&agent.ExecToolConfig{Timeout: cfg.Tools.Exec.Timeout},

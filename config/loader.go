@@ -65,7 +65,7 @@ func (l *Loader) getDefaultConfig() *Config {
 		Agents: AgentsConfig{
 			Defaults: AgentDefaults{
 				Workspace:         ".",
-				Model:             "gpt-4o-mini",
+				Provider:          "openai",
 				MaxTokens:         4096,
 				Temperature:       0.7,
 				MaxToolIterations: 15,
@@ -175,65 +175,65 @@ func (l *Loader) getDefaultConfig() *Config {
 				AllowFrom: []string{},
 			},
 		},
-		Providers: ProvidersConfig{
-			Anthropic: ProviderConfig{
+		Providers: map[string]ProviderConfig{
+			"anthropic": {
 				APIKey:  "",
 				APIBase: "https://api.anthropic.com",
 				ExtraHeaders: map[string]string{
 					"anthropic-version": "2023-06-01",
 				},
 			},
-			OpenAI: ProviderConfig{
+			"openai": {
 				APIKey:       "",
 				APIBase:      "https://api.openai.com/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			OpenRouter: ProviderConfig{
+			"openrouter": {
 				APIKey:       "",
 				APIBase:      "https://openrouter.ai/api/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			DeepSeek: ProviderConfig{
+			"deepseek": {
 				APIKey:       "",
 				APIBase:      "https://api.deepseek.com",
 				ExtraHeaders: map[string]string{},
 			},
-			Groq: ProviderConfig{
+			"groq": {
 				APIKey:       "",
 				APIBase:      "https://api.groq.com/openai/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			Zhipu: ProviderConfig{
+			"zhipu": {
 				APIKey:       "",
 				APIBase:      "https://open.bigmodel.cn/api/paas/v4",
 				ExtraHeaders: map[string]string{},
 			},
-			DashScope: ProviderConfig{
+			"dashscope": {
 				APIKey:       "",
 				APIBase:      "https://dashscope.aliyuncs.com/compatible-mode/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			VLLM: ProviderConfig{
+			"vllm": {
 				APIKey:       "",
 				APIBase:      "http://localhost:8000/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			Gemini: ProviderConfig{
+			"gemini": {
 				APIKey:       "",
 				APIBase:      "https://generativelanguage.googleapis.com/v1beta",
 				ExtraHeaders: map[string]string{},
 			},
-			Moonshot: ProviderConfig{
+			"moonshot": {
 				APIKey:       "",
 				APIBase:      "https://api.moonshot.cn/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			MiniMax: ProviderConfig{
+			"minimax": {
 				APIKey:       "",
 				APIBase:      "https://api.minimax.chat/v1",
 				ExtraHeaders: map[string]string{},
 			},
-			AiHubMix: ProviderConfig{
+			"aihubmix": {
 				APIKey:       "",
 				APIBase:      "https://aihubmix.com/v1",
 				ExtraHeaders: map[string]string{},
