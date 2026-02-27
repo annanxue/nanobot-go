@@ -63,6 +63,7 @@
             <li><a href="#" onclick="showSection('provider')">🔑 Provider 配置</a></li>
             <li><a href="#" onclick="showSection('feishu')">📱 飞书配置</a></li>
             <li><a href="#" onclick="showSection('mochat')">💬 MoChat 配置</a></li>
+            <li><a href="#" onclick="showSection('skills')">🛠️ Skills</a></li>
             <li><a href="#" onclick="showSection('cron')">⏰ Cron 任务</a></li>
             <li><a href="#" onclick="showSection('sessions')">💾 Session 列表</a></li>
         </ul>
@@ -207,6 +208,15 @@
                                     <label>Socket URL</label>
                                     <input type="text" id="mochatSocketUrl" placeholder="ws://localhost:8080/socket.io">
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="skills-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">🛠️ Skills 列表</h3>
+                            <div id="skills-list" class="list-container">
+                                <div class="loading">加载中...</div>
                             </div>
                         </div>
                     </div>

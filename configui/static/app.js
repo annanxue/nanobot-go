@@ -15,6 +15,8 @@ function showSection(sectionName) {
         loadCronJobs();
     } else if (sectionName === 'sessions') {
         loadSessions();
+    } else if (sectionName === 'skills') {
+        loadSkills();
     }
 }
 
@@ -270,6 +272,32 @@ function deleteSession(key) {
     .catch(e => {
         showMessage('请求失败: ' + e, 'error');
     });
+}
+
+function loadSkills() {
+    fetch('/api/skills')
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('skills-list');
+            if (!data.success) {
+                container.innerHTML = '<div class="error">加载失败: ' + data.error + '</div>';
+                return;
+            }
+            const skills = data.data || [];
+            if (skills.length === 0) {
+                container.innerHTML = '<div class="empty">暂无 Skills</div>';
+                return;
+            }
+            let html = '<table class="data-table"><thead><tr><th>名称</th><th>来源</th><th>路径</th></tr></thead><tbody>';
+            skills.forEach(skill => {
+                html += `<tr><td>${skill.name}</td><td>${skill.source}</td><td>${skill.path}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        })
+        .catch(e => {
+            document.getElementById('skills-list').innerHTML = '<div class="error">加载失败: ' + e + '</div>';
+        });
 }
 
 window.onload = loadVisualConfig;

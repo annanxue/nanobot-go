@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nanobotgo/agent"
 	"github.com/nanobotgo/config"
 	"github.com/nanobotgo/cron"
 	"github.com/nanobotgo/session"
@@ -29,6 +30,7 @@ type Server struct {
 	config         *config.Config
 	cronService    *cron.CronService
 	sessionManager *session.SessionManager
+	skillsLoader   *agent.SkillsLoader
 	mu             sync.RWMutex
 	engine         *gin.Engine
 }
@@ -40,7 +42,7 @@ type APIResponse struct {
 	Message string      `json:"message,omitempty"`
 }
 
-func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cronService *cron.CronService, sessionManager *session.SessionManager, listenAddr string) *Server {
+func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cronService *cron.CronService, sessionManager *session.SessionManager, skillsLoader *agent.SkillsLoader, listenAddr string) *Server {
 	if listenAddr != "" {
 		addr = listenAddr
 	}
@@ -50,6 +52,7 @@ func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cro
 		loader:         loader,
 		cronService:    cronService,
 		sessionManager: sessionManager,
+		skillsLoader:   skillsLoader,
 	}
 }
 
@@ -123,6 +126,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 		api.DELETE("/cron/:id", s.handleDeleteCronJob)
 		api.GET("/sessions", s.handleGetSessions)
 		api.DELETE("/sessions/:key", s.handleDeleteSession)
+		api.GET("/skills", s.handleGetSkills)
 	}
 
 	return engine
@@ -218,6 +222,15 @@ func (s *Server) handleDeleteSession(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse{Success: true, Message: "Session deleted successfully"})
+}
+
+func (s *Server) handleGetSkills(c *gin.Context) {
+	if s.skillsLoader == nil {
+		c.JSON(http.StatusOK, APIResponse{Success: false, Error: "Skills loader not available"})
+		return
+	}
+	skills := s.skillsLoader.ListSkills(false)
+	c.JSON(http.StatusOK, APIResponse{Success: true, Data: skills})
 }
 
 func (s *Server) Start() error {

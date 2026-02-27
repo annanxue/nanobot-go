@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/nanobotgo/agent"
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/config"
 	"github.com/nanobotgo/configui"
@@ -127,7 +128,8 @@ func runGateway(cmd *cobra.Command, args []string) error {
 			logrus.Warnf("ConfigUI: Failed to load config: %v", err)
 			return
 		}
-		configUIServer := configui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, ":18080")
+		skillsLoader := agent.NewSkillsLoader(cfg.Agents.Defaults.Workspace)
+		configUIServer := configui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, ":18080")
 		if err := configUIServer.Start(); err != nil {
 			logrus.Warnf("Config UI server error: %v", err)
 		}
