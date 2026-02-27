@@ -174,6 +174,10 @@ func (l *Loader) getDefaultConfig() *Config {
 				Secret:    "",
 				AllowFrom: []string{},
 			},
+			Web: WebConfig{
+				Enabled:   true,
+				AllowFrom: []string{},
+			},
 		},
 		Providers: map[string]ProviderConfig{
 			"anthropic": {

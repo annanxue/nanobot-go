@@ -9,6 +9,7 @@ import (
 
 	"github.com/nanobotgo/agent"
 	"github.com/nanobotgo/bus"
+	"github.com/nanobotgo/channels"
 	"github.com/nanobotgo/config"
 	"github.com/nanobotgo/configui"
 	"github.com/nanobotgo/cron"
@@ -129,7 +130,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 			return
 		}
 		skillsLoader := agent.NewSkillsLoader(cfg.Agents.Defaults.Workspace)
-		configUIServer := configui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, ":18080")
+		configUIServer := configui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, messageBus, channelManager.GetChannel("web").(*channels.WebChannel), ":18080")
 		if err := configUIServer.Start(); err != nil {
 			logrus.Warnf("Config UI server error: %v", err)
 		}

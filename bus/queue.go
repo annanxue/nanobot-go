@@ -3,9 +3,6 @@ package bus
 import (
 	"context"
 	"sync"
-	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 type MessageBus struct {
@@ -51,41 +48,41 @@ func (mb *MessageBus) ConsumeOutbound(ctx context.Context) (*OutboundMessage, er
 	}
 }
 
-func (mb *MessageBus) SubscribeOutbound(channel string, callback func(*OutboundMessage) error) {
-	mb.Lock()
-	defer mb.Unlock()
+// func (mb *MessageBus) SubscribeOutbound(channel string, callback func(*OutboundMessage) error) {
+// 	mb.Lock()
+// 	defer mb.Unlock()
 
-	mb.outboundSubscribers[channel] = append(mb.outboundSubscribers[channel], callback)
-}
+// 	mb.outboundSubscribers[channel] = append(mb.outboundSubscribers[channel], callback)
+// }
 
-func (mb *MessageBus) DispatchOutbound(ctx context.Context) error {
-	mb.Lock()
-	mb.running = true
-	mb.Unlock()
+// func (mb *MessageBus) DispatchOutbound(ctx context.Context) error {
+// 	mb.Lock()
+// 	mb.running = true
+// 	mb.Unlock()
 
-	logger := logrus.WithField("component", "message_bus")
-	logger.Info("Outbound dispatcher started")
+// 	logger := logrus.WithField("component", "message_bus")
+// 	logger.Info("Outbound dispatcher started")
 
-	for mb.running {
-		select {
-		case msg := <-mb.outbound:
-			mb.RLock()
-			subscribers := mb.outboundSubscribers[msg.Channel]
-			mb.RUnlock()
+// 	for mb.running {
+// 		select {
+// 		case msg := <-mb.outbound:
+// 			mb.RLock()
+// 			subscribers := mb.outboundSubscribers[msg.Channel]
+// 			mb.RUnlock()
 
-			for _, callback := range subscribers {
-				if err := callback(msg); err != nil {
-					logger.WithError(err).Errorf("Error dispatching to %s", msg.Channel)
-				}
-			}
-		case <-time.After(1 * time.Second):
-			continue
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-	return nil
-}
+// 			for _, callback := range subscribers {
+// 				if err := callback(msg); err != nil {
+// 					logger.WithError(err).Errorf("Error dispatching to %s", msg.Channel)
+// 				}
+// 			}
+// 		case <-time.After(1 * time.Second):
+// 			continue
+// 		case <-ctx.Done():
+// 			return ctx.Err()
+// 		}
+// 	}
+// 	return nil
+// }
 
 func (mb *MessageBus) Stop() {
 	mb.Lock()

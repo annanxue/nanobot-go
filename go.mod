@@ -4,6 +4,8 @@ go 1.25
 
 require (
 	github.com/gin-gonic/gin v1.11.0
+	github.com/google/uuid v1.4.0
+	github.com/gorilla/websocket v1.5.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/larksuite/oapi-sdk-go/v3 v3.5.3
@@ -32,7 +34,6 @@ require (
 	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect

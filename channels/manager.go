@@ -135,6 +135,16 @@ func (cm *ChannelManager) InitChannels() error {
 		}
 	}
 
+	if cm.config.Channels.Web.Enabled {
+		web, err := NewWebChannel(&cm.config.Channels.Web, cm.bus)
+		if err != nil {
+			logrus.Warnf("Failed to initialize Web channel: %v", err)
+		} else {
+			cm.channels["web"] = web
+			logrus.Info("Web channel enabled")
+		}
+	}
+
 	return nil
 }
 
@@ -315,6 +325,8 @@ func (cm *ChannelManager) getAllowList(channel string) []string {
 		return cm.config.Channels.Slack.DM.AllowFrom
 	case "qq":
 		return cm.config.Channels.QQ.AllowFrom
+	case "web":
+		return cm.config.Channels.Web.AllowFrom
 	default:
 		return []string{}
 	}

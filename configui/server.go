@@ -10,17 +10,19 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nanobotgo/agent"
+	"github.com/nanobotgo/bus"
+	"github.com/nanobotgo/channels"
 	"github.com/nanobotgo/config"
 	"github.com/nanobotgo/cron"
 	"github.com/nanobotgo/session"
 )
 
 var (
-	defaultConfigPath = "config.json"
-	addr              = ":18080"
+	addr = ":18080"
 )
 
 type Server struct {
@@ -31,8 +33,10 @@ type Server struct {
 	cronService    *cron.CronService
 	sessionManager *session.SessionManager
 	skillsLoader   *agent.SkillsLoader
+	messageBus     *bus.MessageBus
 	mu             sync.RWMutex
 	engine         *gin.Engine
+	webChannel     *channels.WebChannel
 }
 
 type APIResponse struct {
@@ -42,10 +46,11 @@ type APIResponse struct {
 	Message string      `json:"message,omitempty"`
 }
 
-func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cronService *cron.CronService, sessionManager *session.SessionManager, skillsLoader *agent.SkillsLoader, listenAddr string) *Server {
+func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cronService *cron.CronService, sessionManager *session.SessionManager, skillsLoader *agent.SkillsLoader, messageBus *bus.MessageBus, webChannel *channels.WebChannel, listenAddr string) *Server {
 	if listenAddr != "" {
 		addr = listenAddr
 	}
+
 	return &Server{
 		config:         cfg,
 		configPath:     configPath,
@@ -53,6 +58,8 @@ func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cro
 		cronService:    cronService,
 		sessionManager: sessionManager,
 		skillsLoader:   skillsLoader,
+		messageBus:     messageBus,
+		webChannel:     webChannel,
 	}
 }
 
@@ -117,6 +124,16 @@ func (s *Server) setupRoutes() *gin.Engine {
 		})
 	})
 
+	engine.GET("/chat", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "chat.html", nil)
+	})
+
+	engine.GET("/ws/chat", func(c *gin.Context) {
+		if s.webChannel != nil {
+			s.webChannel.HandleWebSocketUpgrade(c.Writer, c.Request)
+		}
+	})
+
 	api := engine.Group("/api")
 	{
 		api.GET("/config", s.handleGetConfig)
@@ -127,6 +144,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 		api.GET("/sessions", s.handleGetSessions)
 		api.DELETE("/sessions/:key", s.handleDeleteSession)
 		api.GET("/skills", s.handleGetSkills)
+		api.POST("/chat", s.handleChat)
 	}
 
 	return engine
@@ -231,6 +249,45 @@ func (s *Server) handleGetSkills(c *gin.Context) {
 	}
 	skills := s.skillsLoader.ListSkills(false)
 	c.JSON(http.StatusOK, APIResponse{Success: true, Data: skills})
+}
+
+func (s *Server) handleChat(c *gin.Context) {
+	if s.messageBus == nil {
+		c.JSON(http.StatusOK, APIResponse{Success: false, Error: "Message bus not available"})
+		return
+	}
+
+	var req struct {
+		Content  string `json:"content"`
+		Image    string `json:"image,omitempty"`
+		Filename string `json:"filename,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse{Success: false, Error: "Invalid request"})
+		return
+	}
+
+	var media []string
+	if req.Image != "" {
+		media = append(media, req.Image)
+	}
+
+	inboundMsg := &bus.InboundMessage{
+		Channel:   "web",
+		SenderID:  "web-user",
+		ChatID:    "web-chat",
+		Content:   req.Content,
+		Media:     media,
+		Timestamp: now(),
+	}
+
+	s.messageBus.PublishInbound(inboundMsg)
+
+	c.JSON(http.StatusOK, APIResponse{Success: true, Message: "Message sent"})
+}
+
+func now() time.Time {
+	return time.Now()
 }
 
 func (s *Server) Start() error {

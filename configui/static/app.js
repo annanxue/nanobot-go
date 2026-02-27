@@ -17,6 +17,8 @@ function showSection(sectionName) {
         loadSessions();
     } else if (sectionName === 'skills') {
         loadSkills();
+    } else if (sectionName === 'chat') {
+        initChat();
     }
 }
 
@@ -298,6 +300,121 @@ function loadSkills() {
         .catch(e => {
             document.getElementById('skills-list').innerHTML = '<div class="error">加载失败: ' + e + '</div>';
         });
+}
+
+function initChat() {
+    const container = document.getElementById('chat-messages');
+    if (!container.dataset.initialized) {
+        container.dataset.initialized = 'true';
+    }
+}
+
+function handleChatKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendChatMessage();
+    }
+}
+
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 300) + 'px';
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const content = input.value.trim();
+    if (!content) return;
+
+    addMessage('user', '我', content);
+    input.value = '';
+    input.style.height = 'auto';
+
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content: content})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            addMessage('system', '系统', '发送失败: ' + data.error);
+        }
+    })
+    .catch(e => {
+        addMessage('system', '系统', '请求失败: ' + e);
+    });
+}
+
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const imgData = e.target.result;
+        addMessage('user', '我', '<img src="' + imgData + '" alt="图片">');
+        
+        fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content: '[图片]', image: imgData})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                addMessage('system', '系统', '发送失败: ' + data.error);
+            }
+        })
+        .catch(err => {
+            addMessage('system', '系统', '请求失败: ' + err);
+        });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+function addMessage(type, sender, content, time) {
+    const container = document.getElementById('chat-messages');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-message chat-message-' + type;
+    
+    const now = time || new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+    
+    let avatar = '';
+    if (type === 'user') {
+        avatar = '<div class="chat-avatar">我</div>';
+    } else if (type === 'assistant' || type === 'bot') {
+        avatar = '<div class="chat-avatar">🤖</div>';
+    }
+    
+    const bubbleHtml = `
+        <div class="chat-bubble">
+            ${type !== 'system' ? '<div class="chat-sender">' + sender + '</div>' : ''}
+            <div class="chat-message-content">${content}</div>
+            ${type !== 'system' ? '<div class="chat-time">' + now + '</div>' : ''}
+        </div>
+    `;
+    
+    if (type === 'user') {
+        msgDiv.innerHTML = bubbleHtml + avatar;
+    } else if (type === 'system') {
+        msgDiv.innerHTML = bubbleHtml;
+    } else {
+        msgDiv.innerHTML = avatar + bubbleHtml;
+    }
+    
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
+function addDivider(text) {
+    const container = document.getElementById('chat-messages');
+    const divider = document.createElement('div');
+    divider.className = 'chat-divider';
+    divider.innerHTML = '<span>' + text + '</span>';
+    container.appendChild(divider);
+    container.scrollTop = container.scrollHeight;
 }
 
 window.onload = loadVisualConfig;

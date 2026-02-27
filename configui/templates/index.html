@@ -63,6 +63,7 @@
             <li><a href="#" onclick="showSection('provider')">🔑 Provider 配置</a></li>
             <li><a href="#" onclick="showSection('feishu')">📱 飞书配置</a></li>
             <li><a href="#" onclick="showSection('mochat')">💬 MoChat 配置</a></li>
+            <li><a href="#" onclick="showSection('chat')">💬 聊天</a></li>
             <li><a href="#" onclick="showSection('skills')">🛠️ Skills</a></li>
             <li><a href="#" onclick="showSection('cron')">⏰ Cron 任务</a></li>
             <li><a href="#" onclick="showSection('sessions')">💾 Session 列表</a></li>
@@ -207,6 +208,34 @@
                                 <div class="form-group">
                                     <label>Socket URL</label>
                                     <input type="text" id="mochatSocketUrl" placeholder="ws://localhost:8080/socket.io">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="chat-section" class="section-content">
+                        <div class="section">
+                            <h3 class="section-title">💬 聊天</h3>
+                            <div class="chat-container">
+                                <div class="chat-header">
+                                    <div class="chat-header-avatar">🤖</div>
+                                    <div class="chat-header-info">
+                                        <h4>NanoBot Assistant</h4>
+                                        <p>在线</p>
+                                    </div>
+                                </div>
+                                <div id="chat-messages" class="chat-messages"></div>
+                                <div class="chat-input-area">
+                                    <div class="chat-toolbar">
+                                        <button class="chat-toolbar-btn" title="表情">😊</button>
+                                        <button class="chat-toolbar-btn" title="图片" onclick="document.getElementById('chat-image-input').click()">📷</button>
+                                        <button class="chat-toolbar-btn" title="文件">📎</button>
+                                        <input type="file" id="chat-image-input" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+                                    </div>
+                                    <div class="chat-input-row">
+                                        <textarea id="chat-input" class="chat-input" placeholder="输入消息..." rows="1" onkeydown="handleChatKeyDown(event)" oninput="autoResizeTextarea(this)"></textarea>
+                                        <button class="chat-send-btn" onclick="sendChatMessage()">发送</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

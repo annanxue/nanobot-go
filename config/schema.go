@@ -121,6 +121,11 @@ type QQConfig struct {
 	SendURL    string   `json:"sendUrl" mapstructure:"sendUrl"`
 }
 
+type WebConfig struct {
+	Enabled   bool     `json:"enabled" mapstructure:"enabled"`
+	AllowFrom []string `json:"allowFrom" mapstructure:"allowFrom"`
+}
+
 type ChannelsConfig struct {
 	WhatsApp WhatsAppConfig `json:"whatsapp" mapstructure:"whatsapp"`
 	Telegram TelegramConfig `json:"telegram" mapstructure:"telegram"`
@@ -131,6 +136,7 @@ type ChannelsConfig struct {
 	Email    EmailConfig    `json:"email" mapstructure:"email"`
 	Slack    SlackConfig    `json:"slack" mapstructure:"slack"`
 	QQ       QQConfig       `json:"qq" mapstructure:"qq"`
+	Web      WebConfig      `json:"web" mapstructure:"web"`
 }
 
 type AgentDefaults struct {
