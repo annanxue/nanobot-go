@@ -78,8 +78,10 @@
             align-items: flex-start;
         }
 
+        /* 修复：用户消息使用正常流布局 */
         .chat-message-user {
-            flex-direction: row-reverse;
+            flex-direction: row;
+            justify-content: flex-end; /* 添加这一行确保整体靠右 */
         }
 
         .chat-avatar {
@@ -137,6 +139,29 @@
             max-width: 800px;
         }
 
+        .chat-message-content h1, .chat-message-content h2, .chat-message-content h3, .chat-message-content h4, .chat-message-content h5, .chat-message-content h6 {
+            margin: 12px 0 8px 0;
+            font-weight: bold;
+        }
+
+        .chat-message-content h1 { font-size: 24px; }
+        .chat-message-content h2 { font-size: 22px; }
+        .chat-message-content h3 { font-size: 20px; }
+        .chat-message-content h4 { font-size: 18px; }
+        .chat-message-content h5 { font-size: 16px; }
+        .chat-message-content h6 { font-size: 14px; }
+
+        .chat-message-content p { margin: 8px 0; }
+        .chat-message-content ul, .chat-message-content ol { margin: 8px 0 8px 24px; }
+        .chat-message-content li { margin: 4px 0; }
+        .chat-message-content code { background: #f0f0f0; padding: 2px 4px; border-radius: 4px; font-family: monospace; }
+        .chat-message-content pre { background: #f0f0f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: monospace; }
+        .chat-message-content blockquote { border-left: 4px solid #ccc; padding-left: 12px; margin: 8px 0; color: #666; }
+        .chat-message-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+        .chat-message-content th, .chat-message-content td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        .chat-message-content th { background: #f0f0f0; font-weight: bold; }
+        .chat-message-content img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; }
+
         .chat-message-user .chat-message-content {
             background: #95ec69;
             color: #000;
@@ -178,6 +203,8 @@
             background: #fff;
             border-top: 1px solid #e5e5e5;
             flex-shrink: 0;
+            /* 关键修复1：添加相对定位，作为表情选择器的定位参考 */
+            position: relative;
         }
 
         .chat-toolbar {
@@ -204,6 +231,36 @@
         .chat-toolbar-btn:hover {
             background: #f0f0f0;
             color: #333;
+        }
+
+        #emoji-picker {
+            /* 关键修复2：调整定位，相对于chat-input-area定位 */
+            position: absolute;
+            bottom: 90px; /* 调整距离底部的距离 */
+            right: 40px;  /* 调整距离右侧的距离，适配输入区域 */
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            /* 添加z-index确保在最上层 */
+            z-index: 1000;
+            max-width: 320px; /* 限制最大宽度 */
+        }
+
+        .emoji-item {
+            font-size: 20px;
+            padding: 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .emoji-item:hover {
+            background: #f0f0f0;
         }
 
         .chat-input-row {
@@ -341,10 +398,101 @@
                 <button class="chat-send-btn" onclick="sendChatMessage()">发送</button>
             </div>
         </div>
+        <div id="emoji-picker">
+                <div class="emoji-item" onclick="insertEmoji('😀')">😀</div>
+                <div class="emoji-item" onclick="insertEmoji('😃')">😃</div>
+                <div class="emoji-item" onclick="insertEmoji('😄')">😄</div>
+                <div class="emoji-item" onclick="insertEmoji('😁')">😁</div>
+                <div class="emoji-item" onclick="insertEmoji('😆')">😆</div>
+                <div class="emoji-item" onclick="insertEmoji('😅')">😅</div>
+                <div class="emoji-item" onclick="insertEmoji('😂')">😂</div>
+                <div class="emoji-item" onclick="insertEmoji('🤣')">🤣</div>
+                <div class="emoji-item" onclick="insertEmoji('😊')">😊</div>
+                <div class="emoji-item" onclick="insertEmoji('😇')">😇</div>
+                <div class="emoji-item" onclick="insertEmoji('🙂')">🙂</div>
+                <div class="emoji-item" onclick="insertEmoji('🙃')">🙃</div>
+                <div class="emoji-item" onclick="insertEmoji('😉')">😉</div>
+                <div class="emoji-item" onclick="insertEmoji('😌')">😌</div>
+                <div class="emoji-item" onclick="insertEmoji('😍')">😍</div>
+                <div class="emoji-item" onclick="insertEmoji('🥰')">🥰</div>
+                <div class="emoji-item" onclick="insertEmoji('😘')">😘</div>
+                <div class="emoji-item" onclick="insertEmoji('😗')">😗</div>
+                <div class="emoji-item" onclick="insertEmoji('😙')">😙</div>
+                <div class="emoji-item" onclick="insertEmoji('😚')">😚</div>
+                <div class="emoji-item" onclick="insertEmoji('😋')">😋</div>
+                <div class="emoji-item" onclick="insertEmoji('😛')">😛</div>
+                <div class="emoji-item" onclick="insertEmoji('😜')">😜</div>
+                <div class="emoji-item" onclick="insertEmoji('🤪')">🤪</div>
+                <div class="emoji-item" onclick="insertEmoji('🤨')">🤨</div>
+                <div class="emoji-item" onclick="insertEmoji('🧐')">🧐</div>
+                <div class="emoji-item" onclick="insertEmoji('🤓')">🤓</div>
+                <div class="emoji-item" onclick="insertEmoji('😎')">😎</div>
+                <div class="emoji-item" onclick="insertEmoji('🤩')">🤩</div>
+                <div class="emoji-item" onclick="insertEmoji('🥳')">🥳</div>
+                <div class="emoji-item" onclick="insertEmoji('😏')">😏</div>
+                <div class="emoji-item" onclick="insertEmoji('😒')">😒</div>
+                <div class="emoji-item" onclick="insertEmoji('😞')">😞</div>
+                <div class="emoji-item" onclick="insertEmoji('😔')">😔</div>
+                <div class="emoji-item" onclick="insertEmoji('😟')">😟</div>
+                <div class="emoji-item" onclick="insertEmoji('😕')">😕</div>
+                <div class="emoji-item" onclick="insertEmoji('🙁')">🙁</div>
+                <div class="emoji-item" onclick="insertEmoji('☹️')">☹️</div>
+                <div class="emoji-item" onclick="insertEmoji('😣')">😣</div>
+                <div class="emoji-item" onclick="insertEmoji('😖')">😖</div>
+                <div class="emoji-item" onclick="insertEmoji('😫')">😫</div>
+                <div class="emoji-item" onclick="insertEmoji('😩')">😩</div>
+                <div class="emoji-item" onclick="insertEmoji('🥺')">🥺</div>
+                <div class="emoji-item" onclick="insertEmoji('😢')">😢</div>
+                <div class="emoji-item" onclick="insertEmoji('😭')">😭</div>
+                <div class="emoji-item" onclick="insertEmoji('😤')">😤</div>
+                <div class="emoji-item" onclick="insertEmoji('😠')">😠</div>
+                <div class="emoji-item" onclick="insertEmoji('😡')">😡</div>
+                <div class="emoji-item" onclick="insertEmoji('🤬')">🤬</div>
+                <div class="emoji-item" onclick="insertEmoji('🤯')">🤯</div>
+                <div class="emoji-item" onclick="insertEmoji('😳')">😳</div>
+                <div class="emoji-item" onclick="insertEmoji('🥵')">🥵</div>
+                <div class="emoji-item" onclick="insertEmoji('🥶')">🥶</div>
+                <div class="emoji-item" onclick="insertEmoji('😱')">😱</div>
+                <div class="emoji-item" onclick="insertEmoji('😨')">😨</div>
+                <div class="emoji-item" onclick="insertEmoji('😰')">😰</div>
+                <div class="emoji-item" onclick="insertEmoji('😥')">😥</div>
+                <div class="emoji-item" onclick="insertEmoji('🤢')">🤢</div>
+                <div class="emoji-item" onclick="insertEmoji('🤮')">🤮</div>
+                <div class="emoji-item" onclick="insertEmoji('🤧')">🤧</div>
+                <div class="emoji-item" onclick="insertEmoji('😷')">😷</div>
+                <div class="emoji-item" onclick="insertEmoji('🤒')">🤒</div>
+                <div class="emoji-item" onclick="insertEmoji('🤕')">🤕</div>
+                <div class="emoji-item" onclick="insertEmoji('🤑')">🤑</div>
+                <div class="emoji-item" onclick="insertEmoji('🤠')">🤠</div>
+                <div class="emoji-item" onclick="insertEmoji('😈')">😈</div>
+                <div class="emoji-item" onclick="insertEmoji('👿')">👿</div>
+                <div class="emoji-item" onclick="insertEmoji('👹')">👹</div>
+                <div class="emoji-item" onclick="insertEmoji('👺')">👺</div>
+                <div class="emoji-item" onclick="insertEmoji('🤡')">🤡</div>
+                <div class="emoji-item" onclick="insertEmoji('💩')">💩</div>
+                <div class="emoji-item" onclick="insertEmoji('👻')">👻</div>
+                <div class="emoji-item" onclick="insertEmoji('💀')">💀</div>
+                <div class="emoji-item" onclick="insertEmoji('☠️')">☠️</div>
+                <div class="emoji-item" onclick="insertEmoji('👽')">👽</div>
+                <div class="emoji-item" onclick="insertEmoji('👾')">👾</div>
+                <div class="emoji-item" onclick="insertEmoji('🤖')">🤖</div>
+                <div class="emoji-item" onclick="insertEmoji('🎃')">🎃</div>
+                <div class="emoji-item" onclick="insertEmoji('😺')">😺</div>
+                <div class="emoji-item" onclick="insertEmoji('😸')">😸</div>
+                <div class="emoji-item" onclick="insertEmoji('😹')">😹</div>
+                <div class="emoji-item" onclick="insertEmoji('😻')">😻</div>
+                <div class="emoji-item" onclick="insertEmoji('😼')">😼</div>
+                <div class="emoji-item" onclick="insertEmoji('😽')">😽</div>
+                <div class="emoji-item" onclick="insertEmoji('🙀')">🙀</div>
+                <div class="emoji-item" onclick="insertEmoji('😿')">😿</div>
+                <div class="emoji-item" onclick="insertEmoji('😾')">😾</div>
+            </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
     <script>
         let ws = null;
+        const md = window.markdownit();
         
         function connectWebSocket() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -476,10 +624,15 @@
                 avatar = '<div class="chat-avatar">🤖</div>';
             }
             
+            let renderedContent = content;
+            if (type === 'assistant' || type === 'bot') {
+                renderedContent = md.render(content);
+            }
+            
             const bubbleHtml = `
                 <div class="chat-bubble">
                     ${type !== 'system' ? '<div class="chat-sender">' + sender + '</div>' : ''}
-                    <div class="chat-message-content">${content}</div>
+                    <div class="chat-message-content">${renderedContent}</div>
                     ${type !== 'system' ? '<div class="chat-time">' + now + '</div>' : ''}
                 </div>
             `;
@@ -506,8 +659,39 @@
         }
 
         function showEmojiPicker() {
-            alert('表情选择器功能待实现');
+            const emojiPicker = document.getElementById('emoji-picker');
+            if (emojiPicker.style.display === 'none' || emojiPicker.style.display === '') {
+                emojiPicker.style.display = 'grid'; // 改为grid确保布局生效
+            } else {
+                emojiPicker.style.display = 'none';
+            }
         }
+
+        function insertEmoji(emoji) {
+            // 关键修复3：修正输入框ID为chat-input
+            const input = document.getElementById('chat-input');
+            // 在光标位置插入表情，而不是直接追加到末尾
+            const cursorPos = input.selectionStart;
+            const textBefore = input.value.substring(0, cursorPos);
+            const textAfter = input.value.substring(cursorPos);
+            input.value = textBefore + emoji + textAfter;
+            // 恢复光标位置
+            input.selectionStart = input.selectionEnd = cursorPos + emoji.length;
+            input.focus();
+            showEmojiPicker(); // 选择后隐藏表情面板
+            autoResizeTextarea(input); // 自动调整高度
+        }
+
+        // 新增：点击页面其他区域关闭表情选择器
+        document.addEventListener('click', function(e) {
+            const emojiPicker = document.getElementById('emoji-picker');
+            const emojiBtn = document.querySelector('.chat-toolbar-btn[title="表情"]');
+            if (emojiPicker.style.display === 'grid' && 
+                !emojiPicker.contains(e.target) && 
+                e.target !== emojiBtn) {
+                emojiPicker.style.display = 'none';
+            }
+        });
 
         function initChat() {
             addMessage('system', '系统', '欢迎使用 NanoBot 聊天界面');
