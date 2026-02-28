@@ -9,6 +9,7 @@ import (
 
 	"github.com/nanobotgo/agent"
 	"github.com/nanobotgo/bus"
+	"github.com/nanobotgo/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -50,9 +51,9 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	}
 
 	if agentLogs {
-		logrus.SetLevel(logrus.DebugLevel)
+		utils.Log.SetLevel(logrus.DebugLevel)
 	} else {
-		logrus.SetLevel(logrus.ErrorLevel)
+		utils.Log.SetLevel(logrus.ErrorLevel)
 	}
 
 	sessionManager := createSessionManager(cfg)

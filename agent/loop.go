@@ -4,15 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sync"
+	"time"
 
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/cron"
 	"github.com/nanobotgo/providers"
 	"github.com/nanobotgo/session"
 	"github.com/nanobotgo/tools"
+	"github.com/nanobotgo/utils"
 	"github.com/sashabaranov/go-openai"
-	"github.com/sirupsen/logrus"
 )
 
 type AgentLoop struct {
@@ -29,6 +31,7 @@ type AgentLoop struct {
 	context           *ContextBuilder
 	toolsRegistry     *tools.ToolRegistry
 	subagents         *SubagentManager
+	workerCount       int
 	running           bool
 	mu                sync.RWMutex
 }
@@ -66,6 +69,7 @@ func NewAgentLoop(
 		sessionManager:    sessionManager,
 		context:           NewContextBuilder(workspace),
 		toolsRegistry:     tools.NewToolRegistry(),
+		workerCount:       defaultWorkerCount(),
 	}
 
 	al.subagents = NewSubagentManager(
@@ -80,6 +84,19 @@ func NewAgentLoop(
 
 	al.registerDefaultTools()
 	return al
+}
+
+func defaultWorkerCount() int {
+	// Bound concurrency to avoid unlimited goroutines under burst traffic.
+	n := runtime.GOMAXPROCS(0)
+	if n < 2 {
+		n = 2
+	}
+	n = n * 2
+	if n > 16 {
+		n = 16
+	}
+	return n
 }
 
 func (al *AgentLoop) registerDefaultTools() {
@@ -130,7 +147,7 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 	al.running = true
 	al.mu.Unlock()
 
-	logrus.Info("Agent loop started")
+	utils.Log.Info("Agent loop started")
 
 	msgCh := make(chan *bus.InboundMessage, 10)
 
@@ -147,27 +164,40 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Fixed-size worker pool: prevents unbounded goroutine creation.
+	for i := 0; i < al.workerCount; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-msgCh:
+					if !ok {
+						return
+					}
+					if msg != nil {
+						al.processMessage(ctx, msg)
+					}
+				}
+			}
+		}()
+	}
+
 	for {
 		al.mu.RLock()
 		running := al.running
 		al.mu.RUnlock()
 
 		if !running {
-			logrus.Info("Agent loop exiting...")
+			utils.Log.Info("Agent loop exiting...")
 			return nil
 		}
 
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case msg, ok := <-msgCh:
-			if !ok {
-				logrus.Info("Message channel closed, exiting...")
-				return nil
-			}
-			if msg != nil {
-				go al.processMessage(ctx, msg)
-			}
+		case <-time.After(250 * time.Millisecond):
+			// Messages are handled by the worker pool.
 		}
 	}
 }
@@ -176,7 +206,7 @@ func (al *AgentLoop) Stop() {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 	al.running = false
-	logrus.Info("Agent loop stopping")
+	utils.Log.Info("Agent loop stopping")
 }
 
 func (al *AgentLoop) processMessage(ctx context.Context, msg *bus.InboundMessage) {
@@ -185,13 +215,13 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg *bus.InboundMessage
 		preview = preview[:80] + "..."
 	}
 
-	logrus.Infof("Processing message from %s:%s: %s", msg.Channel, msg.SenderID, preview)
+	utils.Log.Infof("Processing message from %s:%s: %s", msg.Channel, msg.SenderID, preview)
 
 	sess := al.sessionManager.GetOrCreate(msg.SessionKey())
 
 	response, err := al.processDirect(ctx, msg.Content, msg.SessionKey(), msg.Channel, msg.ChatID, msg.Media)
 	if err != nil {
-		logrus.Errorf("Error processing message: %v", err)
+		utils.Log.Errorf("Error processing message: %v", err)
 		response = fmt.Sprintf("Sorry, I encountered an error: %v", err)
 	}
 
@@ -257,7 +287,7 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 
 			for _, toolCall := range response.ToolCalls {
 				argsJSON, _ := json.Marshal(toolCall.Arguments)
-				logrus.Infof("Tool call: %s(%s)", toolCall.Name, string(argsJSON)[:min(200, len(argsJSON))])
+				utils.Log.Infof("Tool call: %s(%s)", toolCall.Name, string(argsJSON)[:min(200, len(argsJSON))])
 
 				result, err := al.toolsRegistry.Execute(ctx, toolCall.Name, toolCall.Arguments)
 				if err != nil {
@@ -280,7 +310,7 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 	if len(preview) > 120 {
 		preview = preview[:120] + "..."
 	}
-	logrus.Infof("Response to %s:%s: %s", channel, chatID, preview)
+	utils.Log.Infof("Response to %s:%s: %s", channel, chatID, preview)
 
 	return finalContent, nil
 }

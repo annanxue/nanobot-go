@@ -32,13 +32,13 @@ func TestQQBot(t *testing.T) {
 	loader := config.NewLoader("../../")
 	cfg, err := loader.Load()
 	if err != nil {
-		log.Fatalln("load config file failed, err:", err)
+		t.Skipf("load config file failed: %v", err)
 	}
 	if cfg.Channels.QQ.AppID == "" {
-		log.Fatalln("QQ AppID not configured in config file")
+		t.Skip("QQ AppID not configured in config file (skipping integration test)")
 	}
 	if cfg.Channels.QQ.Secret == "" {
-		log.Fatalln("QQ AppSecret not configured in config file")
+		t.Skip("QQ AppSecret not configured in config file (skipping integration test)")
 	}
 	credentials := &token.QQBotCredentials{
 		AppID:     cfg.Channels.QQ.AppID,

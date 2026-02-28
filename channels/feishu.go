@@ -15,10 +15,9 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/config"
+	"github.com/nanobotgo/utils"
 )
 
 // MSG_TYPE_MAP maps message types to display strings
@@ -27,6 +26,29 @@ var MSG_TYPE_MAP = map[string]string{
 	"audio":   "[audio]",
 	"file":    "[file]",
 	"sticker": "[sticker]",
+}
+
+// CustomLogger implements larkcore.Logger interface
+type CustomLogger struct{}
+
+// Debug logs debug messages
+func (c *CustomLogger) Debug(ctx context.Context, args ...interface{}) {
+	utils.Log.Debug(args...)
+}
+
+// Info logs info messages
+func (c *CustomLogger) Info(ctx context.Context, args ...interface{}) {
+	utils.Log.Info(args...)
+}
+
+// Warn logs warn messages
+func (c *CustomLogger) Warn(ctx context.Context, args ...interface{}) {
+	utils.Log.Warn(args...)
+}
+
+// Error logs error messages
+func (c *CustomLogger) Error(ctx context.Context, args ...interface{}) {
+	utils.Log.Error(args...)
 }
 
 // FeishuChannel implements the BaseChannel interface for Feishu/Lark
@@ -78,6 +100,7 @@ func (fc *FeishuChannel) Start(ctx context.Context) error {
 	fc.client = lark.NewClient(
 		feishuCfg.AppID,
 		feishuCfg.AppSecret,
+		lark.WithLogger(&CustomLogger{}), // 使用自定义Logger
 		lark.WithLogLevel(larkcore.LogLevelInfo),
 	)
 	/**
@@ -86,21 +109,22 @@ func (fc *FeishuChannel) Start(ctx context.Context) error {
 	 */
 	fc.wsClient = larkws.NewClient(feishuCfg.AppID, feishuCfg.AppSecret,
 		larkws.WithEventHandler(eventDispatcher),
+		larkws.WithLogger(&CustomLogger{}), // 使用自定义Logger
 		larkws.WithLogLevel(larkcore.LogLevelDebug),
 	)
 
 	go func() {
 		err := fc.wsClient.Start(ctx) // 会阻塞，直到上下文取消
 		if err != nil {
-			logrus.Errorf("Failed to start WebSocket client: %v", err)
+			utils.Log.Errorf("Failed to start WebSocket client: %v", err)
 		}
 	}()
 
 	// Create context for cancellation
 	fc.ctx, fc.cancel = context.WithCancel(ctx)
 
-	logrus.Info("Feishu bot started with WebSocket long connection")
-	logrus.Info("No public IP required - using WebSocket to receive events")
+	utils.Log.Info("Feishu bot started with WebSocket long connection")
+	utils.Log.Info("No public IP required - using WebSocket to receive events")
 
 	return nil
 }
@@ -120,14 +144,14 @@ func (fc *FeishuChannel) Stop(ctx context.Context) error {
 	// Stop WebSocket client
 	// WebSocket client will be stopped when context is canceled
 
-	logrus.Info("Feishu bot stopped")
+	utils.Log.Info("Feishu bot stopped")
 	return nil
 }
 
 // Send sends a message through Feishu
 func (fc *FeishuChannel) Send(ctx context.Context, msg *bus.OutboundMessage) error {
 	if !fc.running || fc.client == nil {
-		logrus.Warn("Feishu API client not initialized")
+		utils.Log.Warn("Feishu API client not initialized")
 		return fmt.Errorf("feishu API client not initialized")
 	}
 
@@ -185,7 +209,7 @@ func (fc *FeishuChannel) Send(ctx context.Context, msg *bus.OutboundMessage) err
 			resp.Code, resp.Msg, logID)
 	}
 
-	logrus.Debugf("Feishu message sent to %s", msg.ChatID)
+	utils.Log.Debugf("Feishu message sent to %s", msg.ChatID)
 	return nil
 }
 
@@ -243,14 +267,14 @@ func (fc *FeishuChannel) sendImageMessage(ctx context.Context, msg *bus.Outbound
 		return fmt.Errorf("failed to send image message: code=%d, msg=%s", resp.Code, resp.Msg)
 	}
 
-	logrus.Debugf("Feishu image sent to %s", msg.ChatID)
+	utils.Log.Debugf("Feishu image sent to %s", msg.ChatID)
 	return nil
 }
 
 // addReaction adds a reaction to a Feishu message
 func (fc *FeishuChannel) addReaction(ctx context.Context, messageID, emojiType string) error {
 	if !fc.running || fc.client == nil {
-		logrus.Warn("Feishu API client not initialized")
+		utils.Log.Warn("Feishu API client not initialized")
 		return fmt.Errorf("feishu API client not initialized")
 	}
 
@@ -275,7 +299,7 @@ func (fc *FeishuChannel) addReaction(ctx context.Context, messageID, emojiType s
 	if !resp.Success() {
 		return fmt.Errorf("failed to add reaction: %s", resp.Msg)
 	}
-	logrus.Debugf("Added %s reaction to message %s", emojiType, messageID)
+	utils.Log.Debugf("Added %s reaction to message %s", emojiType, messageID)
 	return nil
 }
 
@@ -330,7 +354,7 @@ func (fc *FeishuChannel) handleMessage(event *larkim.P2MessageReceiveV1) {
 	if messageID != "" {
 		err := fc.addReaction(fc.ctx, messageID, "THUMBSUP")
 		if err != nil {
-			logrus.Errorf("Failed to add reaction: %v", err)
+			utils.Log.Errorf("Failed to add reaction: %v", err)
 		}
 	}
 
@@ -374,7 +398,7 @@ func (fc *FeishuChannel) handleMessage(event *larkim.P2MessageReceiveV1) {
 
 	// Check if sender is allowed
 	if !fc.IsAllowed(senderID, feishuCfg.AllowFrom) {
-		logrus.Warnf("Access denied for sender %s on feishu channel", senderID)
+		utils.Log.Warnf("Access denied for sender %s on feishu channel", senderID)
 		return
 	}
 

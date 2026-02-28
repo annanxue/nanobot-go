@@ -16,6 +16,7 @@ import (
 	"github.com/nanobotgo/heartbeat"
 	"github.com/nanobotgo/providers"
 	"github.com/nanobotgo/session"
+	"github.com/nanobotgo/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -76,13 +77,10 @@ func getConfigPath() string {
 
 func setupLogging(verbose bool) {
 	if verbose {
-		logrus.SetLevel(logrus.DebugLevel)
+		utils.Log.SetLevel(logrus.DebugLevel)
 	} else {
-		logrus.SetLevel(logrus.InfoLevel)
+		utils.Log.SetLevel(logrus.InfoLevel)
 	}
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
 }
 
 func makeProvider(cfg *config.Config) (providers.LLMProvider, error) {
@@ -119,7 +117,7 @@ func setupSignalHandler(cancel context.CancelFunc) {
 
 	go func() {
 		<-sigChan
-		logrus.Info("Received interrupt signal, shutting down...")
+		utils.Log.Info("Received interrupt signal, shutting down...")
 		cancel()
 	}()
 }
@@ -169,9 +167,9 @@ Information about the user goes here.
 		filePath := filepath.Join(workspace, filename)
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-				logrus.Warnf("Failed to create %s: %v", filename, err)
+				utils.Log.Warnf("Failed to create %s: %v", filename, err)
 			} else {
-				logrus.Infof("Created %s", filename)
+				utils.Log.Infof("Created %s", filename)
 			}
 		}
 	}
@@ -202,7 +200,7 @@ This file stores important information that should persist across sessions.
 		if err := os.WriteFile(memoryFile, []byte(memoryContent), 0644); err != nil {
 			return err
 		}
-		logrus.Info("Created memory/MEMORY.md")
+		utils.Log.Info("Created memory/MEMORY.md")
 	}
 
 	skillsDir := filepath.Join(workspace, "skills")

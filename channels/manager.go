@@ -9,7 +9,7 @@ import (
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/config"
 	"github.com/nanobotgo/session"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 type BaseChannel interface {
@@ -48,100 +48,100 @@ func (cm *ChannelManager) InitChannels() error {
 	if cm.config.Channels.Telegram.Enabled {
 		telegram, err := NewTelegramChannel(&cm.config.Channels.Telegram, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Telegram channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Telegram channel: %v", err)
 		} else {
 			cm.channels["telegram"] = telegram
-			logrus.Info("Telegram channel enabled")
+			utils.Log.Info("Telegram channel enabled")
 		}
 	}
 
 	if cm.config.Channels.WhatsApp.Enabled {
 		whatsapp, err := NewWhatsAppChannel(&cm.config.Channels.WhatsApp, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize WhatsApp channel: %v", err)
+			utils.Log.Warnf("Failed to initialize WhatsApp channel: %v", err)
 		} else {
 			cm.channels["whatsapp"] = whatsapp
-			logrus.Info("WhatsApp channel enabled")
+			utils.Log.Info("WhatsApp channel enabled")
 		}
 	}
 
 	if cm.config.Channels.Discord.Enabled {
 		discord, err := NewDiscordChannel(&cm.config.Channels.Discord, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Discord channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Discord channel: %v", err)
 		} else {
 			cm.channels["discord"] = discord
-			logrus.Info("Discord channel enabled")
+			utils.Log.Info("Discord channel enabled")
 		}
 	}
 
 	if cm.config.Channels.Feishu.Enabled {
 		feishu, err := NewFeishuChannel(&cm.config.Channels.Feishu, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Feishu channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Feishu channel: %v", err)
 		} else {
 			cm.channels["feishu"] = feishu
-			logrus.Info("Feishu channel enabled")
+			utils.Log.Info("Feishu channel enabled")
 		}
 	}
 
 	if cm.config.Channels.Mochat.Enabled {
 		mochat, err := NewMochatChannel(&cm.config.Channels.Mochat, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Mochat channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Mochat channel: %v", err)
 		} else {
 			cm.channels["mochat"] = mochat
-			logrus.Info("Mochat channel enabled")
+			utils.Log.Info("Mochat channel enabled")
 		}
 	}
 
 	if cm.config.Channels.DingTalk.Enabled {
 		dingtalk, err := NewDingTalkChannel(&cm.config.Channels.DingTalk, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize DingTalk channel: %v", err)
+			utils.Log.Warnf("Failed to initialize DingTalk channel: %v", err)
 		} else {
 			cm.channels["dingtalk"] = dingtalk
-			logrus.Info("DingTalk channel enabled")
+			utils.Log.Info("DingTalk channel enabled")
 		}
 	}
 
 	if cm.config.Channels.Email.Enabled {
 		email, err := NewEmailChannel(&cm.config.Channels.Email, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Email channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Email channel: %v", err)
 		} else {
 			cm.channels["email"] = email
-			logrus.Info("Email channel enabled")
+			utils.Log.Info("Email channel enabled")
 		}
 	}
 
 	if cm.config.Channels.Slack.Enabled {
 		slack, err := NewSlackChannel(&cm.config.Channels.Slack, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Slack channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Slack channel: %v", err)
 		} else {
 			cm.channels["slack"] = slack
-			logrus.Info("Slack channel enabled")
+			utils.Log.Info("Slack channel enabled")
 		}
 	}
 
 	if cm.config.Channels.QQ.Enabled {
 		qq, err := NewQQChannel(&cm.config.Channels.QQ, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize QQ channel: %v", err)
+			utils.Log.Warnf("Failed to initialize QQ channel: %v", err)
 		} else {
 			cm.channels["qq"] = qq
-			logrus.Info("QQ channel enabled")
+			utils.Log.Info("QQ channel enabled")
 		}
 	}
 
 	if cm.config.Channels.Web.Enabled {
 		web, err := NewWebChannel(&cm.config.Channels.Web, cm.bus)
 		if err != nil {
-			logrus.Warnf("Failed to initialize Web channel: %v", err)
+			utils.Log.Warnf("Failed to initialize Web channel: %v", err)
 		} else {
 			cm.channels["web"] = web
-			logrus.Info("Web channel enabled")
+			utils.Log.Info("Web channel enabled")
 		}
 	}
 
@@ -153,7 +153,7 @@ func (cm *ChannelManager) StartAll(ctx context.Context) error {
 	defer cm.mu.Unlock()
 
 	if len(cm.channels) == 0 {
-		logrus.Warn("No channels enabled")
+		utils.Log.Warn("No channels enabled")
 		return nil
 	}
 
@@ -163,10 +163,10 @@ func (cm *ChannelManager) StartAll(ctx context.Context) error {
 	go cm.dispatchOutbound()
 
 	for name, channel := range cm.channels {
-		logrus.Infof("Starting %s channel...", name)
+		utils.Log.Infof("Starting %s channel...", name)
 		go func(name string, ch BaseChannel) {
 			if err := ch.Start(ctx); err != nil {
-				logrus.Errorf("Failed to start channel %s: %v", name, err)
+				utils.Log.Errorf("Failed to start channel %s: %v", name, err)
 			}
 		}(name, channel)
 	}
@@ -178,7 +178,7 @@ func (cm *ChannelManager) StopAll(ctx context.Context) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	logrus.Info("Stopping all channels...")
+	utils.Log.Info("Stopping all channels...")
 
 	if cm.dispatchCancel != nil {
 		cm.dispatchCancel()
@@ -186,9 +186,9 @@ func (cm *ChannelManager) StopAll(ctx context.Context) error {
 
 	for name, channel := range cm.channels {
 		if err := channel.Stop(ctx); err != nil {
-			logrus.Errorf("Error stopping %s: %v", name, err)
+			utils.Log.Errorf("Error stopping %s: %v", name, err)
 		} else {
-			logrus.Infof("Stopped %s channel", name)
+			utils.Log.Infof("Stopped %s channel", name)
 		}
 	}
 
@@ -197,7 +197,7 @@ func (cm *ChannelManager) StopAll(ctx context.Context) error {
 }
 
 func (cm *ChannelManager) dispatchOutbound() {
-	logrus.Info("Outbound dispatcher started")
+	utils.Log.Info("Outbound dispatcher started")
 
 	for {
 		select {
@@ -215,10 +215,10 @@ func (cm *ChannelManager) dispatchOutbound() {
 
 			if exists {
 				if err := channel.Send(cm.dispatchCtx, msg); err != nil {
-					logrus.Errorf("Error sending to %s: %v", msg.Channel, err)
+					utils.Log.Errorf("Error sending to %s: %v", msg.Channel, err)
 				}
 			} else {
-				logrus.Warnf("Unknown channel: %s", msg.Channel)
+				utils.Log.Warnf("Unknown channel: %s", msg.Channel)
 			}
 		}
 	}
@@ -288,7 +288,7 @@ func (cm *ChannelManager) HandleMessage(channel string, senderID, chatID, conten
 
 	allowFrom := cm.getAllowList(channel)
 	if !cm.IsAllowed(senderID, allowFrom) {
-		logrus.Warnf("Access denied for sender %s on channel %s. Add them to allowFrom list in config.", senderID, channel)
+		utils.Log.Warnf("Access denied for sender %s on channel %s. Add them to allowFrom list in config.", senderID, channel)
 		return nil
 	}
 

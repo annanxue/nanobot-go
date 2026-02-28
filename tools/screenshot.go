@@ -13,7 +13,7 @@ import (
 	"github.com/kbinani/screenshot"
 
 	"github.com/nanobotgo/bus"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 type ScreenshotTool struct {
@@ -69,7 +69,7 @@ func (t *ScreenshotTool) Execute(ctx context.Context, params map[string]interfac
 		return "", fmt.Errorf("failed to save screenshot: %w", err)
 	}
 
-	logrus.Infof("Screenshot saved to %s", filename)
+	utils.Log.Infof("Screenshot saved to %s", filename)
 
 	channel := t.defaultChannel
 	chatID := t.defaultChatID

@@ -23,13 +23,26 @@ func NewLoader(configPath string) *Loader {
 	v.SetConfigName("config")
 	v.SetConfigType("json")
 
+	homeDir, _ := os.UserHomeDir()
+	defaultUserConfigDir := ""
+	if strings.TrimSpace(homeDir) != "" {
+		defaultUserConfigDir = filepath.Join(homeDir, ".nanobot")
+	}
+
 	if configPath != "" {
-		v.AddConfigPath(configPath)
-		v.AddConfigPath(filepath.Join(configPath, "config"))
+		// Support both: --config <file.json> OR --config <dir>
+		if strings.HasSuffix(strings.ToLower(configPath), ".json") {
+			v.SetConfigFile(configPath)
+		} else {
+			v.AddConfigPath(configPath)
+			v.AddConfigPath(filepath.Join(configPath, "config"))
+		}
 	} else {
 		v.AddConfigPath(".")
 		v.AddConfigPath("./config")
-		v.AddConfigPath(filepath.Join(os.Getenv("HOME"), ".nanobot"))
+		if defaultUserConfigDir != "" {
+			v.AddConfigPath(defaultUserConfigDir)
+		}
 		v.AddConfigPath("/etc/nanobot")
 	}
 
@@ -42,6 +55,14 @@ func NewLoader(configPath string) *Loader {
 		configName: "config",
 		viper:      v,
 	}
+}
+
+func (l *Loader) defaultConfigFilePath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(homeDir) == "" {
+		return filepath.Join(".", "config.json")
+	}
+	return filepath.Join(homeDir, ".nanobot", "config.json")
 }
 
 func (l *Loader) Load() (*Config, error) {
@@ -265,7 +286,17 @@ func (l *Loader) getDefaultConfig() *Config {
 func (l *Loader) Save(cfg *Config) error {
 	configFile := l.viper.ConfigFileUsed()
 	if configFile == "" {
-		configFile = filepath.Join(l.configPath, "config.json")
+		// If user passed --config, treat it as either file path or directory.
+		if l.configPath != "" {
+			if strings.HasSuffix(strings.ToLower(l.configPath), ".json") {
+				configFile = l.configPath
+			} else {
+				configFile = filepath.Join(l.configPath, "config.json")
+			}
+		} else {
+			// Default: ~/.nanobot/config.json
+			configFile = l.defaultConfigFilePath()
+		}
 	}
 
 	configDir := filepath.Dir(configFile)
@@ -287,7 +318,16 @@ func (l *Loader) Save(cfg *Config) error {
 }
 
 func (l *Loader) GetConfigPath() string {
-	return l.viper.ConfigFileUsed()
+	if used := l.viper.ConfigFileUsed(); used != "" {
+		return used
+	}
+	if l.configPath != "" {
+		if strings.HasSuffix(strings.ToLower(l.configPath), ".json") {
+			return l.configPath
+		}
+		return filepath.Join(l.configPath, "config.json")
+	}
+	return l.defaultConfigFilePath()
 }
 
 func (l *Loader) GetConfigDir() string {

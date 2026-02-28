@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/config"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 type WebChannel struct {
@@ -38,7 +39,21 @@ func NewWebChannel(cfg *config.WebConfig, bus *bus.MessageBus) (*WebChannel, err
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				return true
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					// Non-browser clients
+					return true
+				}
+				u, err := url.Parse(origin)
+				if err != nil {
+					return false
+				}
+				host := u.Hostname()
+				// Default: only allow same-machine browser origins.
+				if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+					return true
+				}
+				return false
 			},
 		},
 	}
@@ -51,7 +66,7 @@ func NewWebChannel(cfg *config.WebConfig, bus *bus.MessageBus) (*WebChannel, err
 }
 
 func (wc *WebChannel) Send(ctx context.Context, msg *bus.OutboundMessage) error {
-	logrus.Infof("Sending message to web channel: %s", msg.Content)
+	utils.Log.Infof("Sending message to web channel: %s", msg.Content)
 
 	// Get WebSocket connection by ChatID (which is the connection ID)
 	wc.wsManager.mu.RLock()
@@ -64,7 +79,7 @@ func (wc *WebChannel) Send(ctx context.Context, msg *bus.OutboundMessage) error 
 			"content": msg.Content,
 		}
 		if err := ws.WriteJSON(response); err != nil {
-			fmt.Printf("Failed to send WebSocket message: %v\n", err)
+			utils.Log.Errorf("Failed to send WebSocket message: %v", err)
 			return err
 		}
 	}
@@ -80,7 +95,7 @@ func (wm *WebSocketManager) HandleUpgrade(w http.ResponseWriter, r *http.Request
 	// Upgrade HTTP connection to WebSocket
 	ws, err := wm.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("Failed to upgrade to WebSocket: %v\n", err)
+		utils.Log.Errorf("Failed to upgrade to WebSocket: %v", err)
 		return err
 	}
 	defer ws.Close()
@@ -92,6 +107,13 @@ func (wm *WebSocketManager) HandleUpgrade(w http.ResponseWriter, r *http.Request
 	wm.mu.Lock()
 	wm.connections[connID] = ws
 	wm.mu.Unlock()
+
+	// Send connection ID to client so it can route /api/chat if needed.
+	_ = ws.WriteJSON(map[string]interface{}{
+		"success": true,
+		"type":    "connected",
+		"conn_id": connID,
+	})
 
 	// Process incoming messages from client
 	for {
@@ -113,7 +135,7 @@ func (wm *WebSocketManager) HandleUpgrade(w http.ResponseWriter, r *http.Request
 			Filename string `json:"filename,omitempty"`
 		}
 		if err := json.Unmarshal(message, &req); err != nil {
-			fmt.Printf("Failed to parse WebSocket message: %v\n", err)
+			utils.Log.Errorf("Failed to parse WebSocket message: %v", err)
 			continue
 		}
 

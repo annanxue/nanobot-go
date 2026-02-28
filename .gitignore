@@ -5,3 +5,4 @@ nanobot.exe
 nanobot
 .env
 screenshot_*.png
+logs/*

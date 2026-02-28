@@ -9,7 +9,7 @@ import (
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/providers"
 	"github.com/nanobotgo/tools"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 type SubagentManager struct {
@@ -64,12 +64,12 @@ func (sm *SubagentManager) Spawn(ctx context.Context, task, label, originChannel
 
 	go sm.runSubagent(taskCtx, taskID, task, displayLabel, originChannel, originChatID)
 
-	logrus.Infof("Spawned subagent [%s]: %s", taskID, displayLabel)
+	utils.Log.Infof("Spawned subagent [%s]: %s", taskID, displayLabel)
 	return fmt.Sprintf("Subagent [%s] started (id: %s). I'll notify you when it completes.", displayLabel, taskID), nil
 }
 
 func (sm *SubagentManager) runSubagent(ctx context.Context, taskID, task, label, originChannel, originChatID string) {
-	logrus.Infof("Subagent [%s] starting task: %s", taskID, label)
+	utils.Log.Infof("Subagent [%s] starting task: %s", taskID, label)
 
 	defer func() {
 		delete(sm.runningTasks, taskID)
@@ -136,7 +136,7 @@ func (sm *SubagentManager) runSubagent(ctx context.Context, taskID, task, label,
 
 			for _, toolCall := range response.ToolCalls {
 				argsJSON, _ := json.Marshal(toolCall.Arguments)
-				logrus.Debugf("Subagent [%s] executing: %s with arguments: %s", taskID, toolCall.Name, string(argsJSON))
+				utils.Log.Debugf("Subagent [%s] executing: %s with arguments: %s", taskID, toolCall.Name, string(argsJSON))
 
 				result, err := toolsRegistry.Execute(ctx, toolCall.Name, toolCall.Arguments)
 				if err != nil {
@@ -160,7 +160,7 @@ func (sm *SubagentManager) runSubagent(ctx context.Context, taskID, task, label,
 		finalResult = "Task completed but no final response was generated."
 	}
 
-	logrus.Infof("Subagent [%s] completed successfully", taskID)
+	utils.Log.Infof("Subagent [%s] completed successfully", taskID)
 	sm.announceResult(taskID, label, task, finalResult, originChannel, originChatID, "ok")
 }
 
@@ -187,7 +187,7 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
 	}
 
 	sm.bus.PublishInbound(msg)
-	logrus.Debugf("Subagent [%s] announced result to %s:%s", taskID, originChannel, originChatID)
+	utils.Log.Debugf("Subagent [%s] announced result to %s:%s", taskID, originChannel, originChatID)
 }
 
 func (sm *SubagentManager) buildSubagentPrompt(task string) string {

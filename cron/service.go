@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 type command struct {
@@ -133,7 +133,7 @@ func (cs *CronService) doLoadStore() {
 				return
 			}
 		}
-		logrus.WithError(err).Warn("Failed to load cron store")
+		utils.Log.WithError(err).Warn("Failed to load cron store")
 	}
 
 	cs.store = &CronStore{Version: 1, Jobs: []CronJob{}}
@@ -169,7 +169,7 @@ func (cs *CronService) Start() error {
 	err := cs.doSaveStore()
 
 	cs.cron.Start()
-	logrus.Infof("Cron service started with %d jobs", len(cs.store.Jobs))
+	utils.Log.Infof("Cron service started with %d jobs", len(cs.store.Jobs))
 	cs.running = true
 
 	return err
@@ -225,11 +225,11 @@ func (cs *CronService) scheduleJob(job *CronJob) {
 			cs.executeJob(job)
 		})
 		if err != nil {
-			logrus.Errorf("Failed to schedule job %s: %v", job.ID, err)
+			utils.Log.Errorf("Failed to schedule job %s: %v", job.ID, err)
 			return
 		}
 		cs.jobEntries[job.ID] = entryID
-		logrus.Infof("Scheduled job %s with spec %s", job.ID, spec)
+		utils.Log.Infof("Scheduled job %s with spec %s", job.ID, spec)
 	}
 }
 
@@ -359,7 +359,7 @@ func (cs *CronService) doAddJob(name string, schedule CronSchedule, message stri
 		cs.scheduleJob(&job)
 	}
 
-	logrus.Infof("Cron: added job '%s' (%s)", name, job.ID)
+	utils.Log.Infof("Cron: added job '%s' (%s)", name, job.ID)
 
 	err := cs.doSaveStore()
 
@@ -389,7 +389,7 @@ func (cs *CronService) doRemoveJob(jobID string) bool {
 
 	if removed {
 		cs.doSaveStore()
-		logrus.Infof("Cron: removed job %s", jobID)
+		utils.Log.Infof("Cron: removed job %s", jobID)
 	}
 
 	return removed
@@ -469,7 +469,7 @@ func (cs *CronService) doRunJob(jobID string, force bool) bool {
 
 func (cs *CronService) executeJob(job *CronJob) {
 	startMs := time.Now().UnixMilli()
-	logrus.Infof("Cron: executing job '%s' (%s)", job.Name, job.ID)
+	utils.Log.Infof("Cron: executing job '%s' (%s)", job.Name, job.ID)
 
 	var err error
 	if cs.onJob != nil {
@@ -479,11 +479,11 @@ func (cs *CronService) executeJob(job *CronJob) {
 	if err != nil {
 		job.State.LastStatus = JobStatusError
 		job.State.LastError = err.Error()
-		logrus.Errorf("Cron: job '%s' failed: %v", job.Name, err)
+		utils.Log.Errorf("Cron: job '%s' failed: %v", job.Name, err)
 	} else {
 		job.State.LastStatus = JobStatusOK
 		job.State.LastError = ""
-		logrus.Infof("Cron: job '%s' completed", job.Name)
+		utils.Log.Infof("Cron: job '%s' completed", job.Name)
 	}
 
 	job.State.LastRunAtMs = &startMs

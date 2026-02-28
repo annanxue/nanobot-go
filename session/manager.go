@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/nanobotgo/utils"
-	"github.com/sirupsen/logrus"
 )
 
 type SessionMessage struct {
@@ -119,7 +118,7 @@ func (sm *SessionManager) load(key string) *Session {
 
 	file, err := os.Open(path)
 	if err != nil {
-		logrus.WithError(err).Warnf("Failed to load session %s", key)
+		utils.Log.WithError(err).Warnf("Failed to load session %s", key)
 		return nil
 	}
 	defer file.Close()
@@ -171,7 +170,7 @@ func (sm *SessionManager) Save(session *Session) {
 	path := sm.getSessionPath(session.Key)
 	file, err := os.Create(path)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to save session %s", session.Key)
+		utils.Log.WithError(err).Errorf("Failed to save session %s", session.Key)
 		return
 	}
 	defer file.Close()

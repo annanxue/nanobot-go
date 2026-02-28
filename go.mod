@@ -16,6 +16,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/tencent-connect/botgo v0.2.1
 	github.com/voocel/litellm v1.5.8
+	go.uber.org/zap v1.21.0
 )
 
 require (

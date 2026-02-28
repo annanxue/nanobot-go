@@ -8,7 +8,7 @@ import (
 
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/config"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 type BaseChannelImpl struct {
@@ -36,7 +36,7 @@ func (bc *BaseChannelImpl) Start(ctx context.Context) error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	bc.running = true
-	logrus.Infof("%s channel started", bc.name)
+	utils.Log.Infof("%s channel started", bc.name)
 	return nil
 }
 
@@ -44,12 +44,12 @@ func (bc *BaseChannelImpl) Stop(ctx context.Context) error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	bc.running = false
-	logrus.Infof("%s channel stopped", bc.name)
+	utils.Log.Infof("%s channel stopped", bc.name)
 	return nil
 }
 
 func (bc *BaseChannelImpl) Send(ctx context.Context, msg *bus.OutboundMessage) error {
-	logrus.Infof("Sending message to %s:%s", msg.Channel, msg.ChatID)
+	utils.Log.Infof("Sending message to %s:%s", msg.Channel, msg.ChatID)
 	return nil
 }
 
@@ -83,7 +83,7 @@ func (bc *BaseChannelImpl) IsAllowed(senderID string, allowFrom []string) bool {
 
 func (bc *BaseChannelImpl) HandleMessage(senderID, chatID, content string, media []string, metadata map[string]interface{}, allowFrom []string) error {
 	if !bc.IsAllowed(senderID, allowFrom) {
-		logrus.Warnf("Access denied for sender %s on channel %s", senderID, bc.name)
+		utils.Log.Warnf("Access denied for sender %s on channel %s", senderID, bc.name)
 		return nil
 	}
 

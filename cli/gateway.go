@@ -11,9 +11,9 @@ import (
 	"github.com/nanobotgo/bus"
 	"github.com/nanobotgo/channels"
 	"github.com/nanobotgo/config"
-	"github.com/nanobotgo/configui"
 	"github.com/nanobotgo/cron"
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
+	"github.com/nanobotgo/webui"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +43,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	fmt.Printf("%s Starting nanobot gateway on port %d...\n", Logo, gatewayPort)
+	utils.Log.Infof("Starting nanobot gateway on port %d...", gatewayPort)
 
 	messageBus := bus.NewMessageBus()
 	provider, err := makeProvider(cfg)
@@ -70,7 +70,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 			nil,
 		)
 		if err != nil {
-			logrus.Errorf("Cron job error: %v", err)
+			utils.Log.Errorf("Cron job error: %v", err)
 			return "", err
 		}
 
@@ -94,7 +94,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 			nil,
 		)
 		if err != nil {
-			logrus.Errorf("Heartbeat error: %v", err)
+			utils.Log.Errorf("Heartbeat error: %v", err)
 			return "", err
 		}
 		return response, nil
@@ -106,9 +106,9 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(channelManager.EnabledChannels()) > 0 {
-		fmt.Printf("✓ Channels enabled: %s\n", stringsJoin(channelManager.EnabledChannels(), ", "))
+		utils.Log.Infof("Channels enabled: %s", stringsJoin(channelManager.EnabledChannels(), ", "))
 	} else {
-		fmt.Println("Warning: No channels enabled")
+		utils.Log.Warn("No channels enabled")
 	}
 
 	cronStatus := cronService.Status()
@@ -117,22 +117,22 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		jobsCount = count
 	}
 	if jobsCount > 0 {
-		fmt.Printf("✓ Cron: %d scheduled jobs\n", jobsCount)
+		utils.Log.Infof("Cron: %d scheduled jobs", jobsCount)
 	}
 
-	fmt.Println("✓ Heartbeat: every 30m")
+	utils.Log.Info("Heartbeat: every 30m")
 
 	go func() {
 		loader := config.NewLoader(configPath)
 		cfg, err := loader.Load()
 		if err != nil {
-			logrus.Warnf("ConfigUI: Failed to load config: %v", err)
+			utils.Log.Warnf("WebUI: Failed to load config: %v", err)
 			return
 		}
 		skillsLoader := agent.NewSkillsLoader(cfg.Agents.Defaults.Workspace)
-		configUIServer := configui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, messageBus, channelManager.GetChannel("web").(*channels.WebChannel), ":18080")
-		if err := configUIServer.Start(); err != nil {
-			logrus.Warnf("Config UI server error: %v", err)
+		webUIServer := webui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, messageBus, channelManager.GetChannel("web").(*channels.WebChannel), ":18080")
+		if err := webUIServer.Start(); err != nil {
+			utils.Log.Warnf("WebUI server error: %v", err)
 		}
 	}()
 
@@ -144,12 +144,12 @@ func runGateway(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		<-sigChan
-		fmt.Println("\nShutting down...")
+		utils.Log.Info("Shutting down...")
 		heartbeatService.Stop()
 		cronService.Stop()
 		agentLoop.Stop()
 		if err := channelManager.StopAll(ctx); err != nil {
-			logrus.Errorf("Error stopping channels: %v", err)
+			utils.Log.Errorf("Error stopping channels: %v", err)
 		}
 		cancel()
 	}()
@@ -164,7 +164,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		if err := agentLoop.Run(ctx); err != nil {
-			logrus.Errorf("Agent loop error: %v", err)
+			utils.Log.Errorf("Agent loop error: %v", err)
 		}
 	}()
 

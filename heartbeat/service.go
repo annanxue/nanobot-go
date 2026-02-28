@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/nanobotgo/utils"
 )
 
 const (
@@ -81,7 +81,7 @@ func isHeartbeatEmpty(content string) bool {
 
 func (hs *HeartbeatService) Start() error {
 	if !hs.enabled {
-		logrus.Info("Heartbeat disabled")
+		utils.Log.Info("Heartbeat disabled")
 		return nil
 	}
 
@@ -90,7 +90,7 @@ func (hs *HeartbeatService) Start() error {
 
 	go hs.runLoop()
 
-	logrus.Infof("Heartbeat started (every %ds)", hs.intervalS)
+	utils.Log.Infof("Heartbeat started (every %ds)", hs.intervalS)
 	return nil
 }
 
@@ -123,16 +123,16 @@ func (hs *HeartbeatService) tick() {
 	content := hs.readHeartbeatFile()
 
 	if isHeartbeatEmpty(content) {
-		logrus.Debug("Heartbeat: no tasks (HEARTBEAT.md empty)")
+		utils.Log.Debug("Heartbeat: no tasks (HEARTBEAT.md empty)")
 		return
 	}
 
-	logrus.Info("Heartbeat: checking for tasks...")
+	utils.Log.Info("Heartbeat: checking for tasks...")
 
 	if hs.onHeartbeat != nil {
 		response, err := hs.onHeartbeat(HeartbeatPrompt)
 		if err != nil {
-			logrus.Errorf("Heartbeat execution failed: %v", err)
+			utils.Log.Errorf("Heartbeat execution failed: %v", err)
 			return
 		}
 
@@ -142,9 +142,9 @@ func (hs *HeartbeatService) tick() {
 		tokenUpper = strings.ReplaceAll(tokenUpper, "_", "")
 
 		if strings.Contains(responseUpper, tokenUpper) {
-			logrus.Info("Heartbeat: OK (no action needed)")
+			utils.Log.Info("Heartbeat: OK (no action needed)")
 		} else {
-			logrus.Info("Heartbeat: completed task")
+			utils.Log.Info("Heartbeat: completed task")
 		}
 	}
 }

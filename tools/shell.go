@@ -89,7 +89,7 @@ func (t *ExecTool) Execute(ctx context.Context, params map[string]interface{}) (
 	}
 
 	if guardError := t.guardCommand(command, workingDir); guardError != "" {
-		return "", fmt.Errorf(guardError)
+		return "", fmt.Errorf("%s", guardError)
 	}
 
 	var cmd *exec.Cmd
