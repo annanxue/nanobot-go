@@ -3,6 +3,7 @@ __debug_bin*
 nanobotgo.exe
 nanobot.exe
 nanobot
+nanobotgo
 .env
 screenshot_*.png
 logs/*
