@@ -39,6 +39,7 @@ type Server struct {
 	engine         *gin.Engine
 	webChannel     *channels.WebChannel
 	authToken      string
+	agentLoops     map[string]*agent.AgentLoop
 }
 
 type APIResponse struct {
@@ -48,7 +49,7 @@ type APIResponse struct {
 	Message string      `json:"message,omitempty"`
 }
 
-func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cronService *cron.CronService, sessionManager *session.SessionManager, skillsLoader *agent.SkillsLoader, messageBus *bus.MessageBus, webChannel *channels.WebChannel, listenAddr string) *Server {
+func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cronService *cron.CronService, sessionManager *session.SessionManager, skillsLoader *agent.SkillsLoader, messageBus *bus.MessageBus, webChannel *channels.WebChannel, listenAddr string, agentLoops map[string]*agent.AgentLoop) *Server {
 	if listenAddr != "" {
 		addr = listenAddr
 	}
@@ -63,6 +64,7 @@ func NewServer(cfg *config.Config, configPath string, loader *config.Loader, cro
 		messageBus:     messageBus,
 		webChannel:     webChannel,
 		authToken:      "",
+		agentLoops:     agentLoops,
 	}
 }
 
@@ -191,6 +193,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 		api.DELETE("/sessions/:key", s.handleDeleteSession)
 		api.GET("/skills", s.handleGetSkills)
 		api.POST("/chat", s.handleChat)
+		api.GET("/agents", s.handleGetAgents)
 	}
 
 	return engine
@@ -305,6 +308,23 @@ func (s *Server) handleGetSkills(c *gin.Context) {
 	}
 	skills := s.skillsLoader.ListSkills(false)
 	c.JSON(http.StatusOK, APIResponse{Success: true, Data: skills})
+}
+
+func (s *Server) handleGetAgents(c *gin.Context) {
+	agents := make([]map[string]string, 0)
+	if s.agentLoops != nil {
+		for name, agentLoop := range s.agentLoops {
+			if name == "" || name == "default" {
+				continue
+			}
+			agents = append(agents, map[string]string{
+				"name":     name,
+				"model":    agentLoop.GetModel(),
+				"provider": "unknown",
+			})
+		}
+	}
+	c.JSON(http.StatusOK, APIResponse{Success: true, Data: agents})
 }
 
 func (s *Server) handleChat(c *gin.Context) {

@@ -75,8 +75,9 @@ func (wc *WebChannel) Send(ctx context.Context, msg *bus.OutboundMessage) error 
 
 	if exists {
 		response := map[string]interface{}{
-			"success": true,
-			"content": msg.Content,
+			"success":    true,
+			"content":    msg.Content,
+			"agent_name": msg.AgentName,
 		}
 		if err := ws.WriteJSON(response); err != nil {
 			utils.Log.Errorf("Failed to send WebSocket message: %v", err)

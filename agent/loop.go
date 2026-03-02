@@ -18,7 +18,9 @@ import (
 )
 
 type AgentLoop struct {
+	name              string
 	bus               *bus.MessageBus
+	msgCh             chan *bus.InboundMessage
 	provider          providers.LLMProvider
 	workspace         string
 	model             string
@@ -41,6 +43,23 @@ type ExecToolConfig struct {
 }
 
 func NewAgentLoop(
+	name string,
+	bus *bus.MessageBus,
+	provider providers.LLMProvider,
+	workspace string,
+	model string,
+	maxIterations int,
+	braveAPIKey string,
+	execConfig *ExecToolConfig,
+	cronService *cron.CronService,
+	restrictWorkspace bool,
+	sessionManager *session.SessionManager,
+) *AgentLoop {
+	return NewAgentLoopWithName(name, bus, provider, workspace, model, maxIterations, braveAPIKey, execConfig, cronService, restrictWorkspace, sessionManager)
+}
+
+func NewAgentLoopWithName(
+	name string,
 	bus *bus.MessageBus,
 	provider providers.LLMProvider,
 	workspace string,
@@ -57,6 +76,7 @@ func NewAgentLoop(
 	}
 
 	al := &AgentLoop{
+		name:              name,
 		bus:               bus,
 		provider:          provider,
 		workspace:         workspace,
@@ -71,6 +91,8 @@ func NewAgentLoop(
 		toolsRegistry:     tools.NewToolRegistry(),
 		workerCount:       defaultWorkerCount(),
 	}
+
+	al.msgCh = bus.RegisterAgent(name)
 
 	al.subagents = NewSubagentManager(
 		provider,
@@ -147,13 +169,11 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 	al.running = true
 	al.mu.Unlock()
 
-	utils.Log.Info("Agent loop started")
-
-	msgCh := make(chan *bus.InboundMessage, 10)
-
+	utils.Log.Infof("Agent loop [%s] started", al.name)
+	msgCh := al.msgCh
 	go func() {
 		for {
-			msg, err := al.bus.ConsumeInbound(ctx)
+			msg, err := al.bus.ConsumeAgentInbound(ctx, al.name)
 			if err != nil {
 				close(msgCh)
 				return
@@ -206,7 +226,23 @@ func (al *AgentLoop) Stop() {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 	al.running = false
-	utils.Log.Info("Agent loop stopping")
+	if al.name != "" {
+		utils.Log.Infof("Agent loop [%s] stopping", al.name)
+	} else {
+		utils.Log.Info("Agent loop stopping")
+	}
+}
+
+func (al *AgentLoop) GetModel() string {
+	return al.model
+}
+
+func (al *AgentLoop) GetWorkspace() string {
+	return al.workspace
+}
+
+func (al *AgentLoop) GetName() string {
+	return al.name
 }
 
 func (al *AgentLoop) processMessage(ctx context.Context, msg *bus.InboundMessage) {
@@ -230,10 +266,11 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg *bus.InboundMessage
 	al.sessionManager.Save(sess)
 
 	outbound := &bus.OutboundMessage{
-		Channel:  msg.Channel,
-		ChatID:   msg.ChatID,
-		Content:  response,
-		Metadata: msg.Metadata,
+		Channel:   msg.Channel,
+		ChatID:    msg.ChatID,
+		Content:   response,
+		Metadata:  msg.Metadata,
+		AgentName: al.name,
 	}
 
 	al.bus.PublishOutbound(outbound)

@@ -46,10 +46,6 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	utils.Log.Infof("Starting nanobot gateway on port %d...", gatewayPort)
 
 	messageBus := bus.NewMessageBus()
-	provider, err := makeProvider(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create provider: %w", err)
-	}
 
 	sessionManager := createSessionManager(cfg)
 
@@ -58,7 +54,27 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create cron service: %w", err)
 	}
 
-	agentLoop := createAgentLoop(cfg, messageBus, provider, sessionManager, cronService)
+	agentLoops := make(map[string]*agent.AgentLoop)
+
+	defaultProvider, err := makeProvider(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create default provider: %w", err)
+	}
+	defaultAgentLoop := createAgentLoop("default", cfg, messageBus, defaultProvider, sessionManager, cronService)
+	agentLoops["default"] = defaultAgentLoop
+
+	for _, agentCfg := range cfg.Agents.Agents {
+		agentLoop, err := createAgentLoopWithConfig(agentCfg, cfg, messageBus, sessionManager, cronService)
+		if err != nil {
+			utils.Log.Warnf("Failed to create agent %s: %v, using default", agentCfg.Name, err)
+			continue
+		}
+		agentLoops[agentCfg.Name] = agentLoop
+		utils.Log.Infof("Agent [%s] started with provider=%s, model=%s, workspace=%s",
+			agentCfg.Name, agentCfg.Provider, agentLoop.GetModel(), agentLoop.GetWorkspace())
+	}
+
+	agentDispatcher := NewAgentDispatcher(agentLoops, defaultAgentLoop, messageBus)
 
 	cronService.SetOnJob(func(job *cron.CronJob) (string, error) {
 		// response, err := agentLoop.ProcessDirect(
@@ -85,7 +101,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	})
 
 	heartbeatService := createHeartbeatService(cfg, func(prompt string) (string, error) {
-		response, err := agentLoop.ProcessDirect(
+		response, err := defaultAgentLoop.ProcessDirect(
 			context.Background(),
 			prompt,
 			"heartbeat",
@@ -130,7 +146,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 			return
 		}
 		skillsLoader := agent.NewSkillsLoader(cfg.Agents.Defaults.Workspace)
-		webUIServer := webui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, messageBus, channelManager.GetChannel("web").(*channels.WebChannel), ":18080")
+		webUIServer := webui.NewServer(cfg, loader.GetConfigPath(), loader, cronService, sessionManager, skillsLoader, messageBus, channelManager.GetChannel("web").(*channels.WebChannel), ":18080", agentDispatcher.GetAgentLoops())
 		if err := webUIServer.Start(); err != nil {
 			utils.Log.Warnf("WebUI server error: %v", err)
 		}
@@ -147,7 +163,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		utils.Log.Info("Shutting down...")
 		heartbeatService.Stop()
 		cronService.Stop()
-		agentLoop.Stop()
+		agentDispatcher.StopAll()
 		if err := channelManager.StopAll(ctx); err != nil {
 			utils.Log.Errorf("Error stopping channels: %v", err)
 		}
@@ -162,11 +178,17 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start heartbeat service: %w", err)
 	}
 
-	go func() {
-		if err := agentLoop.Run(ctx); err != nil {
-			utils.Log.Errorf("Agent loop error: %v", err)
-		}
-	}()
+	for name, agentLoop := range agentDispatcher.GetAgentLoops() {
+		name := name
+		agentLoop := agentLoop
+		go func() {
+			if err := agentLoop.Run(ctx); err != nil {
+				utils.Log.Errorf("Agent loop [%s] error: %v", name, err)
+			}
+		}()
+	}
+
+	agentDispatcher.StartConsuming(ctx)
 
 	if err := channelManager.StartAll(ctx); err != nil {
 		return fmt.Errorf("failed to start channels: %w", err)

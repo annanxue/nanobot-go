@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -11,6 +12,7 @@ type MessageBus struct {
 	sync.RWMutex
 	outboundSubscribers map[string][]func(*OutboundMessage) error
 	running             bool
+	agentInbound        map[string]chan *InboundMessage
 }
 
 func NewMessageBus() *MessageBus {
@@ -19,6 +21,58 @@ func NewMessageBus() *MessageBus {
 		outbound:            make(chan *OutboundMessage, 100),
 		outboundSubscribers: make(map[string][]func(*OutboundMessage) error),
 		running:             false,
+		agentInbound:        make(map[string]chan *InboundMessage),
+	}
+}
+
+func (mb *MessageBus) RegisterAgent(name string) chan *InboundMessage {
+	mb.Lock()
+	defer mb.Unlock()
+	ch := make(chan *InboundMessage, 100)
+	mb.agentInbound[name] = ch
+	return ch
+}
+
+func (mb *MessageBus) UnregisterAgent(name string) {
+	mb.Lock()
+	defer mb.Unlock()
+	if ch, ok := mb.agentInbound[name]; ok {
+		close(ch)
+		delete(mb.agentInbound, name)
+	}
+}
+
+func (mb *MessageBus) ConsumeAgentInbound(ctx context.Context, agentName string) (*InboundMessage, error) {
+	mb.RLock()
+	ch, ok := mb.agentInbound[agentName]
+	mb.RUnlock()
+
+	if !ok || ch == nil {
+		return nil, fmt.Errorf("agent %s not found", agentName)
+	}
+
+	select {
+	case msg := <-ch:
+		return msg, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (mb *MessageBus) DispatchToAgent(ctx context.Context, agentName string, msg *InboundMessage) bool {
+	mb.RLock()
+	ch, ok := mb.agentInbound[agentName]
+	mb.RUnlock()
+	if !ok || ch == nil {
+		return false
+	}
+	select {
+	case ch <- msg:
+		return true
+	case <-ctx.Done():
+		return false
+	default:
+		return false
 	}
 }
 

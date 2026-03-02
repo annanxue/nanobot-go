@@ -396,9 +396,10 @@
                 <input type="file" id="chat-file-input" style="display:none" onchange="handleFileUpload(event)">
             </div>
             <div class="chat-input-row">
-                <textarea id="chat-input" class="chat-input" placeholder="输入消息..." rows="1" onkeydown="handleChatKeyDown(event)" oninput="autoResizeTextarea(this)"></textarea>
+                <textarea id="chat-input" class="chat-input" placeholder="输入消息..." rows="1" onkeydown="handleChatKeyDown(event)" oninput="handleChatInput(this)"></textarea>
                 <button class="chat-send-btn" onclick="sendChatMessage()">发送</button>
             </div>
+            <div id="agent-mention-dropdown" class="agent-mention-dropdown" style="display: none;"></div>
         </div>
         <div id="emoji-picker">
                 <div class="emoji-item" onclick="insertEmoji('😀')">😀</div>
@@ -518,7 +519,8 @@
                         try { localStorage.setItem('nanobot_web_conn_id', connId); } catch (e) {}
                         return;
                     }
-                    addMessage('bot', 'NanoBot', data.content);
+                    const sender = data.agent_name || 'NanoBot';
+                    addMessage('bot', sender, data.content);
                 }
             };
             
@@ -532,13 +534,6 @@
             };
         }
         
-        function handleChatKeyDown(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendChatMessage();
-            }
-        }
-
         function autoResizeTextarea(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = Math.min(textarea.scrollHeight, 300) + 'px';
@@ -715,11 +710,13 @@
         }
 
         window.onload = function() {
-            initChat();
-            connectWebSocket();
-            
-            const textarea = document.getElementById('chat-input');
-            autoResizeTextarea(textarea);
+            loadVisualConfig().then(() => {
+                initChat();
+                connectWebSocket();
+                
+                const textarea = document.getElementById('chat-input');
+                autoResizeTextarea(textarea);
+            });
         };
     </script>
 </body>

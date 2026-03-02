@@ -142,6 +142,17 @@ type ChannelsConfig struct {
 type AgentDefaults struct {
 	Workspace         string  `json:"workspace" mapstructure:"workspace"`
 	Provider          string  `json:"provider" mapstructure:"provider"`
+	Model             string  `json:"model" mapstructure:"model"`
+	MaxTokens         int     `json:"maxTokens" mapstructure:"maxTokens"`
+	Temperature       float64 `json:"temperature" mapstructure:"temperature"`
+	MaxToolIterations int     `json:"maxToolIterations" mapstructure:"maxToolIterations"`
+}
+
+type Agent struct {
+	Name              string  `json:"name" mapstructure:"name"`
+	Provider          string  `json:"provider" mapstructure:"provider"`
+	Model             string  `json:"model" mapstructure:"model"`
+	Workspace         string  `json:"workspace" mapstructure:"workspace"`
 	MaxTokens         int     `json:"maxTokens" mapstructure:"maxTokens"`
 	Temperature       float64 `json:"temperature" mapstructure:"temperature"`
 	MaxToolIterations int     `json:"maxToolIterations" mapstructure:"maxToolIterations"`
@@ -149,6 +160,7 @@ type AgentDefaults struct {
 
 type AgentsConfig struct {
 	Defaults AgentDefaults `json:"defaults" mapstructure:"defaults"`
+	Agents   []Agent       `json:"agents" mapstructure:"agents"`
 }
 
 type ProviderConfig struct {

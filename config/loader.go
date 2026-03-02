@@ -87,9 +87,21 @@ func (l *Loader) getDefaultConfig() *Config {
 			Defaults: AgentDefaults{
 				Workspace:         ".",
 				Provider:          "openai",
+				Model:             "",
 				MaxTokens:         4096,
 				Temperature:       0.7,
 				MaxToolIterations: 15,
+			},
+			Agents: []Agent{
+				{
+					Name:              "assistant",
+					Provider:          "openai",
+					Model:             "",
+					Workspace:         ".",
+					MaxTokens:         4096,
+					Temperature:       0.7,
+					MaxToolIterations: 15,
+				},
 			},
 		},
 		Channels: ChannelsConfig{

@@ -59,6 +59,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	sessionManager := createSessionManager(cfg)
 
 	agentLoop := agent.NewAgentLoop(
+		"default",
 		bus,
 		provider,
 		cfg.Agents.Defaults.Workspace,

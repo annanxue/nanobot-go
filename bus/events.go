@@ -17,10 +17,11 @@ func (m *InboundMessage) SessionKey() string {
 }
 
 type OutboundMessage struct {
-	Channel  string                 `json:"channel"`
-	ChatID   string                 `json:"chat_id"`
-	Content  string                 `json:"content"`
-	ReplyTo  string                 `json:"reply_to,omitempty"`
-	Media    []string               `json:"media,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Channel   string                 `json:"channel"`
+	ChatID    string                 `json:"chat_id"`
+	Content   string                 `json:"content"`
+	ReplyTo   string                 `json:"reply_to,omitempty"`
+	Media     []string               `json:"media,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	AgentName string                 `json:"agent_name,omitempty"`
 }

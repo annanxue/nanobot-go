@@ -84,19 +84,27 @@ func setupLogging(verbose bool) {
 }
 
 func makeProvider(cfg *config.Config) (providers.LLMProvider, error) {
-	provider := cfg.Agents.Defaults.Provider
-	providerCfg := getProviderConfig(cfg, provider)
+	return makeProviderWithModel(cfg, cfg.Agents.Defaults.Provider, cfg.Agents.Defaults.Model)
+}
+
+func makeProviderWithModel(cfg *config.Config, providerName, model string) (providers.LLMProvider, error) {
+	providerCfg := getProviderConfig(cfg, providerName)
 
 	if providerCfg == nil {
 		return nil, fmt.Errorf("no API key configured for provider")
 	}
 
-	return providers.NewOpenAIProvider( // litellm_provider对于deepseek的role:tool支持有问题，content会改成数组，deepseek不支持
+	effectiveModel := model
+	if effectiveModel == "" {
+		effectiveModel = providerCfg.Model
+	}
+
+	return providers.NewOpenAIProvider(
 		providerCfg.APIKey,
 		providerCfg.APIBase,
-		providerCfg.Model,
+		effectiveModel,
 		providerCfg.ExtraHeaders,
-		cfg.Agents.Defaults.Provider,
+		providerName,
 	), nil
 }
 
@@ -228,6 +236,7 @@ func getWorkspacePath() string {
 }
 
 func createAgentLoop(
+	name string,
 	cfg *config.Config,
 	bus *bus.MessageBus,
 	provider providers.LLMProvider,
@@ -235,6 +244,7 @@ func createAgentLoop(
 	cronService *cron.CronService,
 ) *agent.AgentLoop {
 	return agent.NewAgentLoop(
+		name,
 		bus,
 		provider,
 		cfg.Agents.Defaults.Workspace,
@@ -246,6 +256,43 @@ func createAgentLoop(
 		cfg.Tools.RestrictWorkspace,
 		sessionManager,
 	)
+}
+
+func createAgentLoopWithConfig(
+	agentCfg config.Agent,
+	cfg *config.Config,
+	bus *bus.MessageBus,
+	sessionManager *session.SessionManager,
+	cronService *cron.CronService,
+) (*agent.AgentLoop, error) {
+	provider, err := makeProviderWithModel(cfg, agentCfg.Provider, agentCfg.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider for agent %s: %w", agentCfg.Name, err)
+	}
+
+	workspace := agentCfg.Workspace
+	if workspace == "" {
+		workspace = cfg.Agents.Defaults.Workspace
+	}
+
+	maxIterations := agentCfg.MaxToolIterations
+	if maxIterations == 0 {
+		maxIterations = cfg.Agents.Defaults.MaxToolIterations
+	}
+
+	return agent.NewAgentLoop(
+		agentCfg.Name,
+		bus,
+		provider,
+		workspace,
+		provider.GetDefaultModel(),
+		maxIterations,
+		cfg.Tools.Web.Search.APIKey,
+		&agent.ExecToolConfig{Timeout: cfg.Tools.Exec.Timeout},
+		cronService,
+		cfg.Tools.RestrictWorkspace,
+		sessionManager,
+	), nil
 }
 
 func createChannelManager(cfg *config.Config, bus *bus.MessageBus, sessionManager *session.SessionManager) (*channels.ChannelManager, error) {

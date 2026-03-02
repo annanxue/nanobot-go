@@ -52,7 +52,9 @@ async function loadVisualConfig() {
         const data = await response.json();
         
         if (!data.success) {
-            showMessage('加载配置失败: ' + data.error, 'error');
+            if (document.getElementById('workspace')) {
+                showMessage('加载配置失败: ' + data.error, 'error');
+            }
             return;
         }
         
@@ -60,28 +62,40 @@ async function loadVisualConfig() {
         currentConfig = cfg;
         
         if (cfg.agents && cfg.agents.defaults) {
-            document.getElementById('workspace').value = cfg.agents.defaults.workspace || '';
-            document.getElementById('provider').value = cfg.agents.defaults.provider || 'openai';
-            document.getElementById('maxTokens').value = cfg.agents.defaults.maxTokens || 4096;
-            document.getElementById('temperature').value = cfg.agents.defaults.temperature || 0.7;
-            document.getElementById('maxToolIterations').value = cfg.agents.defaults.maxToolIterations || 15;
+            const workspaceEl = document.getElementById('workspace');
+            const providerEl = document.getElementById('provider');
+            const maxTokensEl = document.getElementById('maxTokens');
+            const temperatureEl = document.getElementById('temperature');
+            const maxToolIterationsEl = document.getElementById('maxToolIterations');
+            
+            if (workspaceEl) workspaceEl.value = cfg.agents.defaults.workspace || '';
+            if (providerEl) providerEl.value = cfg.agents.defaults.provider || 'openai';
+            if (maxTokensEl) maxTokensEl.value = cfg.agents.defaults.maxTokens || 4096;
+            if (temperatureEl) temperatureEl.value = cfg.agents.defaults.temperature || 0.7;
+            if (maxToolIterationsEl) maxToolIterationsEl.value = cfg.agents.defaults.maxToolIterations || 15;
         }
         
         if (cfg.channels && cfg.channels.feishu) {
-            document.getElementById('feishuEnabled').value = String(cfg.channels.feishu.enabled);
-            document.getElementById('feishuAppId').value = cfg.channels.feishu.appId || '';
-            document.getElementById('feishuAppSecret').value = cfg.channels.feishu.appSecret || '';
+            const feishuEnabledEl = document.getElementById('feishuEnabled');
+            const feishuAppIdEl = document.getElementById('feishuAppId');
+            const feishuAppSecretEl = document.getElementById('feishuAppSecret');
+            
+            if (feishuEnabledEl) feishuEnabledEl.value = String(cfg.channels.feishu.enabled);
+            if (feishuAppIdEl) feishuAppIdEl.value = cfg.channels.feishu.appId || '';
+            if (feishuAppSecretEl) feishuAppSecretEl.value = cfg.channels.feishu.appSecret || '';
         }
         
-        // MoChat config removed from UI
         if (cfg.channels && cfg.channels.mochat) {
             // Skip setting MoChat config since elements are removed
         }
         
-        onProviderChange();
+        const providerSelect = document.getElementById('providerSelect');
+        if (providerSelect) {
+            onProviderChange();
+        }
+        loadAvailableAgents();
     } catch (e) {
         console.error('Load config error:', e);
-        showMessage('加载配置失败: ' + e, 'error');
     }
 }
 
@@ -319,18 +333,147 @@ function initChat() {
     if (container && !container.dataset.initialized) {
         container.dataset.initialized = 'true';
     }
+    loadAvailableAgents();
 }
 
 function handleChatKeyDown(event) {
+    if (agentMentionMode && filteredAgentList.length > 0) {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            selectedAgentIndex = Math.min(selectedAgentIndex + 1, filteredAgentList.length - 1);
+            updateAgentSelection();
+            return;
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            selectedAgentIndex = Math.max(selectedAgentIndex - 1, -1);
+            updateAgentSelection();
+            return;
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (selectedAgentIndex >= 0 && selectedAgentIndex < filteredAgentList.length) {
+                selectAgent(filteredAgentList[selectedAgentIndex].name);
+            }
+            return;
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            hideAgentDropdown();
+            return;
+        }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         sendChatMessage();
     }
 }
 
+let availableAgents = [];
+let agentMentionMode = false;
+let agentMentionStart = 0;
+let filteredAgentList = [];
+let selectedAgentIndex = -1;
+
 function autoResizeTextarea(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 300) + 'px';
+}
+
+function loadAvailableAgents() {
+    availableAgents = [];
+    if (currentConfig && currentConfig.agents && currentConfig.agents.agents) {
+        availableAgents = currentConfig.agents.agents.map(agent => ({
+            name: agent.name,
+            model: agent.model || '',
+            provider: agent.provider || ''
+        }));
+    }
+}
+
+function handleChatInput(textarea) {
+    autoResizeTextarea(textarea);
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+    const lastAtPos = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtPos !== -1) {
+        const textAfterAt = textBeforeCursor.substring(lastAtPos + 1);
+        if (!textAfterAt.includes(' ')) {
+            showAgentDropdown(textarea, lastAtPos, textAfterAt);
+            return;
+        }
+    }
+    hideAgentDropdown();
+}
+
+function showAgentDropdown(textarea, atPosition, filterText) {
+    const dropdown = document.getElementById('agent-mention-dropdown');
+    if (!dropdown || availableAgents.length === 0) return;
+
+    filteredAgentList = availableAgents.filter(agent =>
+        agent.name.toLowerCase().includes(filterText.toLowerCase())
+    );
+
+    if (filteredAgentList.length === 0) {
+        hideAgentDropdown();
+        return;
+    }
+
+    selectedAgentIndex = -1;
+
+    dropdown.innerHTML = filteredAgentList.map((agent, index) => `
+        <div class="agent-mention-item" onclick="selectAgent('${agent.name}')" data-index="${index}">
+            <span class="agent-icon">${agent.name.charAt(0).toUpperCase()}</span>
+            <span class="agent-name">@${agent.name}</span>
+            <span class="agent-model">${agent.model}</span>
+        </div>
+    `).join('');
+
+    const textareaRect = textarea.getBoundingClientRect();
+    dropdown.style.display = 'block';
+    dropdown.style.width = (textareaRect.width - 64) + 'px';
+
+    agentMentionMode = true;
+    agentMentionStart = atPosition;
+}
+
+function updateAgentSelection() {
+    const dropdown = document.getElementById('agent-mention-dropdown');
+    if (!dropdown) return;
+
+    const items = dropdown.querySelectorAll('.agent-mention-item');
+    items.forEach((item, index) => {
+        if (index === selectedAgentIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+function hideAgentDropdown() {
+    const dropdown = document.getElementById('agent-mention-dropdown');
+    if (dropdown) {
+        dropdown.style.display = 'none';
+    }
+    agentMentionMode = false;
+    selectedAgentIndex = -1;
+}
+
+function selectAgent(agentName) {
+    const textarea = document.getElementById('chat-input');
+    if (!textarea) return;
+
+    const before = textarea.value.substring(0, agentMentionStart);
+    const after = textarea.value.substring(textarea.selectionStart);
+    textarea.value = before + '@' + agentName + ' ' + after;
+
+    autoResizeTextarea(textarea);
+    hideAgentDropdown();
+
+    const newCursorPos = before.length + agentName.length + 2;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    textarea.focus();
 }
 
 function sendChatMessage() {
