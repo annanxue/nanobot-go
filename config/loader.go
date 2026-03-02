@@ -26,7 +26,7 @@ func NewLoader(configPath string) *Loader {
 	homeDir, _ := os.UserHomeDir()
 	defaultUserConfigDir := ""
 	if strings.TrimSpace(homeDir) != "" {
-		defaultUserConfigDir = filepath.Join(homeDir, ".nanobot")
+		defaultUserConfigDir = filepath.Join(homeDir, ".nanobotgo")
 	}
 
 	if configPath != "" {
@@ -62,7 +62,7 @@ func (l *Loader) defaultConfigFilePath() string {
 	if err != nil || strings.TrimSpace(homeDir) == "" {
 		return filepath.Join(".", "config.json")
 	}
-	return filepath.Join(homeDir, ".nanobot", "config.json")
+	return filepath.Join(homeDir, ".nanobotgo", "config.json")
 }
 
 func (l *Loader) Load() (*Config, error) {
@@ -306,7 +306,7 @@ func (l *Loader) Save(cfg *Config) error {
 				configFile = filepath.Join(l.configPath, "config.json")
 			}
 		} else {
-			// Default: ~/.nanobot/config.json
+			// Default: ~/.nanobotgo/config.json
 			configFile = l.defaultConfigFilePath()
 		}
 	}

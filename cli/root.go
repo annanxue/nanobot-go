@@ -222,9 +222,9 @@ This file stores important information that should persist across sessions.
 func getDataDir() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return ".nanobot"
+		return ".nanobotgo"
 	}
-	return filepath.Join(homeDir, ".nanobot")
+	return filepath.Join(homeDir, ".nanobotgo")
 }
 
 func getWorkspacePath() string {
@@ -232,7 +232,7 @@ func getWorkspacePath() string {
 	if err != nil {
 		return "."
 	}
-	return filepath.Join(homeDir, ".nanobot", "workspace")
+	return filepath.Join(homeDir, ".nanobotgo", "workspace")
 }
 
 func createAgentLoop(

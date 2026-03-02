@@ -35,7 +35,7 @@ ollama serve
 ollama pull llama3
 ```
 
-**3. Configure** (`~/.nanobot/config.json`)
+**3. Configure** (`~/.nanobotgo/config.json`)
 
 ```json
 {
@@ -64,7 +64,7 @@ nanobotgo agent -m "Hello from my local LLM!"
 
 Configure multiple agents in `config.json` and use `@agent_name` in chat to switch between them.
 
-**1. Configure** (`~/.nanobot/config.json`)
+**1. Configure** (`~/.nanobotgo/config.json`)
 
 ```json
 {

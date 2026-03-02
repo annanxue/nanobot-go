@@ -20,7 +20,7 @@ func GetDataPath() string {
 	if err != nil {
 		panic(err)
 	}
-	return EnsureDir(filepath.Join(homeDir, ".nanobot"))
+	return EnsureDir(filepath.Join(homeDir, ".nanobotgo"))
 }
 
 func GetWorkspacePath(workspace string) string {
@@ -32,7 +32,7 @@ func GetWorkspacePath(workspace string) string {
 		if err != nil {
 			panic(err)
 		}
-		path = filepath.Join(homeDir, ".nanobot", "workspace")
+		path = filepath.Join(homeDir, ".nanobotgo", "workspace")
 	}
 	return EnsureDir(path)
 }

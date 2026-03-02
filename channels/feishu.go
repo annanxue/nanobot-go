@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -360,6 +362,8 @@ func (fc *FeishuChannel) handleMessage(event *larkim.P2MessageReceiveV1) {
 
 	// Parse message content
 	var content string
+	var media []string
+
 	if msgType == "text" {
 		if msg.Content != nil {
 			var textContent map[string]string
@@ -368,6 +372,27 @@ func (fc *FeishuChannel) handleMessage(event *larkim.P2MessageReceiveV1) {
 			} else {
 				content = *msg.Content
 			}
+		}
+	} else if msgType == "image" && msg.Content != nil {
+		imgContent, imgMedia, err := fc.handleImageMessage(*msg.Content, messageID)
+		content = imgContent
+		media = imgMedia
+		if err != nil {
+			utils.Log.Errorf("Failed to handle image message: %v", err)
+			content = "[image]"
+		}
+	} else if msgType == "post" && msg.Content != nil {
+		content, media = fc.handlePostMessage(*msg.Content, messageID)
+	} else if (msgType == "audio" || msgType == "file" || msgType == "media") && msg.Content != nil {
+		mediaContent, mediaPath, err := fc.handleMediaMessage(msgType, *msg.Content, messageID)
+		content = mediaContent
+		media = mediaPath
+		if err != nil {
+			utils.Log.Errorf("Failed to handle media message: %v", err)
+		}
+	} else if isShareCardType(msgType) {
+		if msg.Content != nil {
+			content = extractShareCardContent(*msg.Content, msgType)
 		}
 	} else {
 		if display, ok := MSG_TYPE_MAP[msgType]; ok {
@@ -408,7 +433,7 @@ func (fc *FeishuChannel) handleMessage(event *larkim.P2MessageReceiveV1) {
 		SenderID: senderID,
 		ChatID:   replyTo,
 		Content:  content,
-		Media:    []string{},
+		Media:    media,
 		Metadata: metadata,
 	}
 
@@ -575,4 +600,413 @@ func (fc *FeishuChannel) parseMDTable(tableText string) map[string]interface{} {
 	}
 
 	return table
+}
+
+func (fc *FeishuChannel) handleImageMessage(contentJSON string, messageID string) (string, []string, error) {
+	var content map[string]string
+	if err := json.Unmarshal([]byte(contentJSON), &content); err != nil {
+		return "", nil, fmt.Errorf("failed to parse image content: %w", err)
+	}
+
+	imageKey := content["image_key"]
+	if imageKey == "" || messageID == "" {
+		return "", nil, nil
+	}
+
+	imagePath, err := fc.saveImage(messageID, imageKey)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to download image: %w", err)
+	}
+
+	return "", []string{imagePath}, nil
+}
+
+func (fc *FeishuChannel) handleMediaMessage(msgType string, contentJSON string, messageID string) (string, []string, error) {
+	var content map[string]string
+	if err := json.Unmarshal([]byte(contentJSON), &content); err != nil {
+		return fmt.Sprintf("[%s: download failed]", msgType), nil, nil
+	}
+
+	var fileKey string
+	switch msgType {
+	case "audio":
+		fileKey = content["file_key"]
+	case "file":
+		fileKey = content["file_key"]
+	case "media":
+		fileKey = content["file_key"]
+	default:
+		fileKey = content["file_key"]
+	}
+
+	if fileKey == "" || messageID == "" {
+		return fmt.Sprintf("[%s]", msgType), nil, nil
+	}
+
+	filePath, err := fc.saveFile(messageID, fileKey, msgType)
+	if err != nil {
+		utils.Log.Errorf("Failed to download %s: %v", msgType, err)
+		return fmt.Sprintf("[%s: download failed]", msgType), nil, nil
+	}
+
+	return fmt.Sprintf("[%s: %s]", msgType, filepath.Base(filePath)), []string{filePath}, nil
+}
+
+func (fc *FeishuChannel) saveImage(messageID string, imageKey string) (string, error) {
+	imageData, err := fc.downloadImage(messageID, imageKey)
+	if err != nil {
+		return "", err
+	}
+
+	workspace := fc.getWorkspace()
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		return "", err
+	}
+
+	filename := fmt.Sprintf("feishu_image_%s.jpg", imageKey)
+	imagePath := filepath.Join(workspace, filename)
+	if err := os.WriteFile(imagePath, imageData, 0644); err != nil {
+		return "", err
+	}
+
+	utils.Log.Infof("Saved feishu image to: %s", imagePath)
+	return imagePath, nil
+}
+
+func (fc *FeishuChannel) saveFile(messageID string, fileKey string, fileType string) (string, error) {
+	data, err := fc.downloadFile(messageID, fileKey, fileType)
+	if err != nil {
+		return "", err
+	}
+
+	workspace := fc.getWorkspace()
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		return "", err
+	}
+
+	var ext string
+	switch fileType {
+	case "audio":
+		ext = ".opus"
+	case "media":
+		ext = ".mp4"
+	default:
+		ext = ""
+	}
+
+	filename := fmt.Sprintf("feishu_%s_%s%s", fileType, fileKey, ext)
+	filePath := filepath.Join(workspace, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return "", err
+	}
+
+	utils.Log.Infof("Saved feishu %s to: %s", fileType, filePath)
+	return filePath, nil
+}
+
+func (fc *FeishuChannel) downloadFile(messageID string, fileKey string, fileType string) ([]byte, error) {
+	req := larkim.NewGetMessageResourceReqBuilder().
+		MessageId(messageID).
+		FileKey(fileKey).
+		Type(fileType).
+		Build()
+
+	resp, err := fc.client.Im.V1.MessageResource.Get(fc.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file resource: %w", err)
+	}
+
+	if !resp.Success() {
+		return nil, fmt.Errorf("failed to get file: code=%d, msg=%s", resp.Code, resp.Msg)
+	}
+
+	if resp.File == nil {
+		return nil, fmt.Errorf("file data is nil")
+	}
+
+	return io.ReadAll(resp.File)
+}
+
+func (fc *FeishuChannel) downloadImage(messageID string, imageKey string) ([]byte, error) {
+	req := larkim.NewGetMessageResourceReqBuilder().
+		MessageId(messageID).
+		FileKey(imageKey).
+		Type("image").
+		Build()
+
+	resp, err := fc.client.Im.V1.MessageResource.Get(fc.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get image resource: %w", err)
+	}
+
+	if !resp.Success() {
+		return nil, fmt.Errorf("failed to get image: code=%d, msg=%s", resp.Code, resp.Msg)
+	}
+
+	if resp.File == nil {
+		return nil, fmt.Errorf("image data is nil")
+	}
+
+	imageData, err := io.ReadAll(resp.File)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	return imageData, nil
+}
+
+func (fc *FeishuChannel) getWorkspace() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "/tmp"
+	}
+	return filepath.Join(homeDir, ".nanobot", "media")
+}
+
+func isShareCardType(msgType string) bool {
+	return msgType == "share_chat" || msgType == "share_user" ||
+		msgType == "interactive" || msgType == "share_calendar_event" ||
+		msgType == "system" || msgType == "merge_forward"
+}
+
+func extractShareCardContent(contentJSON string, msgType string) string {
+	var content map[string]interface{}
+	if err := json.Unmarshal([]byte(contentJSON), &content); err != nil {
+		return fmt.Sprintf("[%s]", msgType)
+	}
+
+	switch msgType {
+	case "share_chat":
+		if chatID, ok := content["chat_id"].(string); ok {
+			return fmt.Sprintf("[shared chat: %s]", chatID)
+		}
+	case "share_user":
+		if userID, ok := content["user_id"].(string); ok {
+			return fmt.Sprintf("[shared user: %s]", userID)
+		}
+	case "system":
+		return "[system message]"
+	case "merge_forward":
+		return "[merged forward messages]"
+	case "interactive":
+		return extractInteractiveContent(content)
+	case "share_calendar_event":
+		if eventKey, ok := content["event_key"].(string); ok {
+			return fmt.Sprintf("[shared calendar event: %s]", eventKey)
+		}
+	}
+
+	return fmt.Sprintf("[%s]", msgType)
+}
+
+func extractInteractiveContent(content map[string]interface{}) string {
+	var parts []string
+
+	if title, ok := content["title"].(string); ok && title != "" {
+		parts = append(parts, fmt.Sprintf("title: %s", title))
+	} else if titleMap, ok := content["title"].(map[string]interface{}); ok {
+		if titleContent, ok := titleMap["content"].(string); ok && titleContent != "" {
+			parts = append(parts, fmt.Sprintf("title: %s", titleContent))
+		} else if titleText, ok := titleMap["text"].(string); ok && titleText != "" {
+			parts = append(parts, fmt.Sprintf("title: %s", titleText))
+		}
+	}
+
+	if elements, ok := content["elements"].([]interface{}); ok {
+		for _, el := range elements {
+			if elMap, ok := el.(map[string]interface{}); ok {
+				parts = append(parts, extractElementContent(elMap)...)
+			}
+		}
+	}
+
+	if card, ok := content["card"].(map[string]interface{}); ok {
+		parts = append(parts, extractInteractiveContent(card))
+	}
+
+	if len(parts) == 0 {
+		return "[interactive]"
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func extractElementContent(element map[string]interface{}) []string {
+	var parts []string
+
+	tag, _ := element["tag"].(string)
+
+	switch tag {
+	case "markdown", "lark_md":
+		if content, ok := element["content"].(string); ok && content != "" {
+			parts = append(parts, content)
+		}
+	case "div":
+		if text, ok := element["text"].(string); ok && text != "" {
+			parts = append(parts, text)
+		} else if textMap, ok := element["text"].(map[string]interface{}); ok {
+			if textContent, ok := textMap["content"].(string); ok && textContent != "" {
+				parts = append(parts, textContent)
+			} else if textContent, ok := textMap["text"].(string); ok && textContent != "" {
+				parts = append(parts, textContent)
+			}
+		}
+		if fields, ok := element["fields"].([]interface{}); ok {
+			for _, f := range fields {
+				if fieldMap, ok := f.(map[string]interface{}); ok {
+					if fieldText, ok := fieldMap["text"].(map[string]interface{}); ok {
+						if c, ok := fieldText["content"].(string); ok && c != "" {
+							parts = append(parts, c)
+						}
+					}
+				}
+			}
+		}
+	case "a":
+		if href, ok := element["href"].(string); ok && href != "" {
+			parts = append(parts, fmt.Sprintf("link: %s", href))
+		}
+		if text, ok := element["text"].(string); ok && text != "" {
+			parts = append(parts, text)
+		}
+	case "button":
+		if text, ok := element["text"].(string); ok && text != "" {
+			parts = append(parts, text)
+		} else if textMap, ok := element["text"].(map[string]interface{}); ok {
+			if c, ok := textMap["content"].(string); ok && c != "" {
+				parts = append(parts, c)
+			}
+		}
+		if url, ok := element["url"].(string); ok && url != "" {
+			parts = append(parts, fmt.Sprintf("link: %s", url))
+		}
+	case "img":
+		if alt, ok := element["alt"].(string); ok && alt != "" {
+			parts = append(parts, alt)
+		} else {
+			parts = append(parts, "[image]")
+		}
+	case "note":
+		if elements, ok := element["elements"].([]interface{}); ok {
+			for _, ne := range elements {
+				if neMap, ok := ne.(map[string]interface{}); ok {
+					parts = append(parts, extractElementContent(neMap)...)
+				}
+			}
+		}
+	case "column_set":
+		if columns, ok := element["columns"].([]interface{}); ok {
+			for _, col := range columns {
+				if colMap, ok := col.(map[string]interface{}); ok {
+					if elements, ok := colMap["elements"].([]interface{}); ok {
+						for _, ce := range elements {
+							if ceMap, ok := ce.(map[string]interface{}); ok {
+								parts = append(parts, extractElementContent(ceMap)...)
+							}
+						}
+					}
+				}
+			}
+		}
+	case "plain_text":
+		if content, ok := element["content"].(string); ok && content != "" {
+			parts = append(parts, content)
+		}
+	default:
+		if elements, ok := element["elements"].([]interface{}); ok {
+			for _, ne := range elements {
+				if neMap, ok := ne.(map[string]interface{}); ok {
+					parts = append(parts, extractElementContent(neMap)...)
+				}
+			}
+		}
+	}
+
+	return parts
+}
+
+func (fc *FeishuChannel) handlePostMessage(contentJSON string, messageID string) (string, []string) {
+	var content map[string]interface{}
+	if err := json.Unmarshal([]byte(contentJSON), &content); err != nil {
+		return "", nil
+	}
+
+	var root map[string]interface{}
+	if post, ok := content["post"].(map[string]interface{}); ok {
+		root = post
+	} else {
+		root = content
+	}
+
+	var text string
+	var imageKeys []string
+
+	locales := []string{"zh_cn", "en_us", "ja_jp"}
+	for _, locale := range locales {
+		if localeData, ok := root[locale].(map[string]interface{}); ok {
+			text, imageKeys = fc.parsePostBlock(localeData)
+			if text != "" || len(imageKeys) > 0 {
+				break
+			}
+		}
+	}
+
+	if text == "" && len(imageKeys) == 0 {
+		for _, v := range root {
+			if vMap, ok := v.(map[string]interface{}); ok {
+				text, imageKeys = fc.parsePostBlock(vMap)
+				if text != "" || len(imageKeys) > 0 {
+					break
+				}
+			}
+		}
+	}
+
+	var media []string
+	for _, imageKey := range imageKeys {
+		if imagePath, err := fc.saveImage(messageID, imageKey); err == nil {
+			media = append(media, imagePath)
+		}
+	}
+
+	return text, media
+}
+
+func (fc *FeishuChannel) parsePostBlock(block map[string]interface{}) (string, []string) {
+	var texts []string
+	var images []string
+
+	if title, ok := block["title"].(string); ok && title != "" {
+		texts = append(texts, title)
+	}
+
+	if content, ok := block["content"].([]interface{}); ok {
+		for _, row := range content {
+			if rowList, ok := row.([]interface{}); ok {
+				for _, el := range rowList {
+					if elMap, ok := el.(map[string]interface{}); ok {
+						tag, _ := elMap["tag"].(string)
+						if tag == "text" || tag == "a" {
+							if text, ok := elMap["text"].(string); ok && text != "" {
+								texts = append(texts, text)
+							}
+						} else if tag == "at" {
+							if userName, ok := elMap["user_name"].(string); ok && userName != "" {
+								texts = append(texts, fmt.Sprintf("@%s", userName))
+							} else {
+								texts = append(texts, "@user")
+							}
+						} else if tag == "img" {
+							if imageKey, ok := elMap["image_key"].(string); ok && imageKey != "" {
+								images = append(images, imageKey)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	result := strings.Join(texts, " ")
+	return result, images
 }

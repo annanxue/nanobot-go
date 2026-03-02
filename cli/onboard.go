@@ -50,7 +50,7 @@ func runOnboard(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\n%s nanobot is ready!\n\n", Logo)
 	fmt.Println("Next steps:")
-	fmt.Println("  1. Add your API key to ~/.nanobot/config.json")
+	fmt.Println("  1. Add your API key to ~/.nanobotgo/config.json")
 	fmt.Println("     Get one at: https://openrouter.ai/keys")
 	fmt.Println("  2. Chat: nanobotgo agent -m \"Hello!\"")
 	fmt.Println("\nWant Telegram/WhatsApp? See: https://github.com/HKUDS/nanobot#-chat-apps")
