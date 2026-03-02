@@ -211,9 +211,9 @@ func (al *AgentLoop) Stop() {
 
 func (al *AgentLoop) processMessage(ctx context.Context, msg *bus.InboundMessage) {
 	preview := msg.Content
-	if len(preview) > 80 {
-		preview = preview[:80] + "..."
-	}
+	// if len(preview) > 80 {
+	// 	preview = preview[:80] + "..."
+	// }
 
 	utils.Log.Infof("Processing message from %s:%s: %s", msg.Channel, msg.SenderID, preview)
 
@@ -306,11 +306,7 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 		finalContent = "I've completed processing but have no response to give."
 	}
 
-	preview := finalContent
-	if len(preview) > 120 {
-		preview = preview[:120] + "..."
-	}
-	utils.Log.Infof("Response to %s:%s: %s", channel, chatID, preview)
+	utils.Log.Infof("Response to %s:%s: %s", channel, chatID, finalContent)
 
 	return finalContent, nil
 }

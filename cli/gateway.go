@@ -61,27 +61,27 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	agentLoop := createAgentLoop(cfg, messageBus, provider, sessionManager, cronService)
 
 	cronService.SetOnJob(func(job *cron.CronJob) (string, error) {
-		response, err := agentLoop.ProcessDirect(
-			context.Background(),
-			job.Payload.Message,
-			fmt.Sprintf("cron:%s", job.ID),
-			job.Payload.Channel,
-			job.Payload.To,
-			nil,
-		)
-		if err != nil {
-			utils.Log.Errorf("Cron job error: %v", err)
-			return "", err
-		}
+		// response, err := agentLoop.ProcessDirect(
+		// 	context.Background(),
+		// 	job.Payload.Message,
+		// 	fmt.Sprintf("cron:%s", job.ID),
+		// 	job.Payload.Channel,
+		// 	job.Payload.To,
+		// 	nil,
+		// )
+		// if err != nil {
+		// 	utils.Log.Errorf("Cron job error: %v", err)
+		// 	return "", err
+		// }
 
 		if job.Payload.Deliver && job.Payload.To != "" {
 			messageBus.PublishOutbound(&bus.OutboundMessage{
 				Channel: job.Payload.Channel,
 				ChatID:  job.Payload.To,
-				Content: response,
+				Content: job.Payload.Message,
 			})
 		}
-		return response, nil
+		return job.Payload.Message, nil
 	})
 
 	heartbeatService := createHeartbeatService(cfg, func(prompt string) (string, error) {
