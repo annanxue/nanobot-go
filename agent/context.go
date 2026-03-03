@@ -130,18 +130,22 @@ func (cb *ContextBuilder) BuildMessages(history []map[string]interface{}, curren
 
 	messages = append(messages, ConvertToProviderMessages(history)...)
 
-	userContent := cb.buildUserContent(currentMessage, media)
-	messages = append(messages, openai.ChatCompletionMessage{
-		Role:    "user",
-		Content: userContent.(string),
-	})
+	msg := cb.buildUserContent(currentMessage, media)
+	messages = append(messages, msg)
 
 	return messages
 }
 
-func (cb *ContextBuilder) buildUserContent(text string, media []string) interface{} {
+func (cb *ContextBuilder) buildUserContent(text string, media []string) openai.ChatCompletionMessage {
+	msg := openai.ChatCompletionMessage{
+		Role:    "user",
+		Content: text,
+	}
 	if len(media) == 0 {
-		return text
+		if text == "" {
+			msg.Content = "empty content"
+		}
+		return msg
 	}
 
 	var images []openai.ChatMessagePart
@@ -163,18 +167,13 @@ func (cb *ContextBuilder) buildUserContent(text string, media []string) interfac
 	}
 
 	if len(images) == 0 {
-		return text
+		return msg
 	}
-
-	result := make([]interface{}, 0, len(images)+1)
+	msg.Content = ""
 	for _, img := range images {
-		result = append(result, img)
+		msg.MultiContent = append(msg.MultiContent, img)
 	}
-	result = append(result, openai.ChatMessagePart{
-		Type: "text",
-		Text: text,
-	})
-	return result
+	return msg
 }
 
 func (cb *ContextBuilder) AddToolResult(messages []openai.ChatCompletionMessage, toolCallID, toolName, result string) []openai.ChatCompletionMessage {

@@ -617,8 +617,7 @@ func (fc *FeishuChannel) handleImageMessage(contentJSON string, messageID string
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to download image: %w", err)
 	}
-
-	return "", []string{imagePath}, nil
+	return imagePath, []string{imagePath}, nil
 }
 
 func (fc *FeishuChannel) handleMediaMessage(msgType string, contentJSON string, messageID string) (string, []string, error) {
@@ -760,7 +759,7 @@ func (fc *FeishuChannel) getWorkspace() string {
 	if err != nil {
 		return "/tmp"
 	}
-	return filepath.Join(homeDir, ".nanobot", "media")
+	return filepath.Join(homeDir, ".nanobotgo", "media")
 }
 
 func isShareCardType(msgType string) bool {

@@ -45,10 +45,10 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []openai.ChatComplet
 	}
 
 	req := openai.ChatCompletionRequest{
-		Model:       model,
-		Messages:    messages,
-		Tools:       openaiTools,
-		MaxTokens:   maxTokens,
+		Model:    model,
+		Messages: messages,
+		Tools:    openaiTools,
+		// MaxTokens:   maxTokens,
 		Temperature: float32(temperature),
 	}
 
