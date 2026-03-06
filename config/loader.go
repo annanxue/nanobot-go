@@ -213,6 +213,11 @@ func (l *Loader) getDefaultConfig() *Config {
 			},
 		},
 		Providers: map[string]ProviderConfig{
+			"ollama": {
+				APIKey:       "",
+				APIBase:      "http://localhost:11434/v1",
+				ExtraHeaders: map[string]string{},
+			},
 			"anthropic": {
 				APIKey:  "",
 				APIBase: "https://api.anthropic.com",
