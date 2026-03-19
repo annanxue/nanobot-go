@@ -162,6 +162,9 @@ func (al *AgentLoop) registerDefaultTools() {
 		cronTool := NewCronTool(al.cronService)
 		al.toolsRegistry.Register(cronTool)
 	}
+
+	// 注册鼠标工具
+	al.toolsRegistry.Register(&tools.MouseTool{})
 }
 
 func (al *AgentLoop) Run(ctx context.Context) error {
