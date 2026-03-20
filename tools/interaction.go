@@ -8,17 +8,17 @@ import (
 	"github.com/go-vgo/robotgo"
 )
 
-type MouseTool struct{}
+type InteractionTool struct{}
 
-func (t *MouseTool) Name() string {
-	return "mouse"
+func (t *InteractionTool) Name() string {
+	return "interaction"
 }
 
-func (t *MouseTool) Description() string {
+func (t *InteractionTool) Description() string {
 	return "模拟鼠标和键盘操作，包括鼠标点击、输入文本、按下回车键，以及组合操作（点击-输入-回车）"
 }
 
-func (t *MouseTool) Parameters() map[string]interface{} {
+func (t *InteractionTool) Parameters() map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -46,7 +46,7 @@ func (t *MouseTool) Parameters() map[string]interface{} {
 	}
 }
 
-func (t *MouseTool) Execute(ctx context.Context, params map[string]interface{}) (string, error) {
+func (t *InteractionTool) Execute(ctx context.Context, params map[string]interface{}) (string, error) {
 	opType, ok := params["type"].(string)
 	if !ok {
 		return "", fmt.Errorf("操作类型参数缺失或无效")
@@ -66,7 +66,7 @@ func (t *MouseTool) Execute(ctx context.Context, params map[string]interface{}) 
 	}
 }
 
-func (t *MouseTool) executeClick(params map[string]interface{}) (string, error) {
+func (t *InteractionTool) executeClick(params map[string]interface{}) (string, error) {
 	x, okX := params["x"].(float64)
 	y, okY := params["y"].(float64)
 	if !okX || !okY {
@@ -83,7 +83,7 @@ func (t *MouseTool) executeClick(params map[string]interface{}) (string, error) 
 	return fmt.Sprintf("成功在坐标(%d, %d)执行鼠标左键单击", int(x), int(y)), nil
 }
 
-func (t *MouseTool) executeType(params map[string]interface{}) (string, error) {
+func (t *InteractionTool) executeType(params map[string]interface{}) (string, error) {
 	text, ok := params["text"].(string)
 	if !ok {
 		return "", fmt.Errorf("输入文本操作需要text参数")
@@ -96,7 +96,7 @@ func (t *MouseTool) executeType(params map[string]interface{}) (string, error) {
 	return fmt.Sprintf("成功输入文本: %s", text), nil
 }
 
-func (t *MouseTool) executeEnter() (string, error) {
+func (t *InteractionTool) executeEnter() (string, error) {
 	// 短暂延时，确保操作稳定性
 	time.Sleep(100 * time.Millisecond)
 	// 使用 KeyTap 模拟按下回车键
@@ -104,7 +104,7 @@ func (t *MouseTool) executeEnter() (string, error) {
 	return "成功按下回车键", nil
 }
 
-func (t *MouseTool) executeClickTypeEnter(params map[string]interface{}) (string, error) {
+func (t *InteractionTool) executeClickTypeEnter(params map[string]interface{}) (string, error) {
 	// 1. 执行鼠标点击
 	x, okX := params["x"].(float64)
 	y, okY := params["y"].(float64)

@@ -14,6 +14,7 @@ import (
 	"github.com/nanobotgo/session"
 	"github.com/nanobotgo/tools"
 	"github.com/nanobotgo/utils"
+
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -24,6 +25,8 @@ type AgentLoop struct {
 	provider          providers.LLMProvider
 	workspace         string
 	model             string
+	maxTokens         int     // maxTokens 控制LLM响应的最大token数
+	temperature       float64 // temperature 控制生成文本的随机性（0-1范围）
 	maxIterations     int
 	braveAPIKey       string
 	execConfig        *ExecToolConfig
@@ -48,6 +51,8 @@ func NewAgentLoop(
 	provider providers.LLMProvider,
 	workspace string,
 	model string,
+	maxTokens int,
+	temperature float64,
 	maxIterations int,
 	braveAPIKey string,
 	execConfig *ExecToolConfig,
@@ -55,7 +60,7 @@ func NewAgentLoop(
 	restrictWorkspace bool,
 	sessionManager *session.SessionManager,
 ) *AgentLoop {
-	return NewAgentLoopWithName(name, bus, provider, workspace, model, maxIterations, braveAPIKey, execConfig, cronService, restrictWorkspace, sessionManager)
+	return NewAgentLoopWithName(name, bus, provider, workspace, model, maxTokens, temperature, maxIterations, braveAPIKey, execConfig, cronService, restrictWorkspace, sessionManager)
 }
 
 func NewAgentLoopWithName(
@@ -64,6 +69,8 @@ func NewAgentLoopWithName(
 	provider providers.LLMProvider,
 	workspace string,
 	model string,
+	maxTokens int,
+	temperature float64,
 	maxIterations int,
 	braveAPIKey string,
 	execConfig *ExecToolConfig,
@@ -81,6 +88,8 @@ func NewAgentLoopWithName(
 		provider:          provider,
 		workspace:         workspace,
 		model:             model,
+		maxTokens:         maxTokens,
+		temperature:       temperature,
 		maxIterations:     maxIterations,
 		braveAPIKey:       braveAPIKey,
 		execConfig:        execConfig,
@@ -164,7 +173,7 @@ func (al *AgentLoop) registerDefaultTools() {
 	}
 
 	// 注册鼠标工具
-	al.toolsRegistry.Register(&tools.MouseTool{})
+	al.toolsRegistry.Register(&tools.InteractionTool{})
 }
 
 func (al *AgentLoop) Run(ctx context.Context) error {
@@ -301,7 +310,7 @@ func (al *AgentLoop) processDirect(ctx context.Context, content, sessionKey, cha
 	for iteration < al.maxIterations {
 		iteration++
 
-		response, err := al.provider.Chat(ctx, messages, ConvertToToolDefinitions(al.toolsRegistry.GetDefinitions()), al.model, 4096, 0.7)
+		response, err := al.provider.Chat(ctx, messages, ConvertToToolDefinitions(al.toolsRegistry.GetDefinitions()), al.model, al.maxTokens, al.temperature)
 		if err != nil {
 			return "", fmt.Errorf("LLM error: %w", err)
 		}

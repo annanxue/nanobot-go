@@ -96,7 +96,7 @@ func (sm *SubagentManager) runSubagent(ctx context.Context, taskID, task, label,
 	toolsRegistry.Register(tools.NewWebFetchTool(50000))
 
 	// 注册鼠标工具
-	toolsRegistry.Register(&tools.MouseTool{})
+	toolsRegistry.Register(&tools.InteractionTool{})
 
 	systemPrompt := sm.buildSubagentPrompt(task)
 	messages := []map[string]interface{}{

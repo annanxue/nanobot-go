@@ -249,6 +249,8 @@ func createAgentLoop(
 		provider,
 		cfg.Agents.Defaults.Workspace,
 		provider.GetDefaultModel(),
+		cfg.Agents.Defaults.MaxTokens,
+		cfg.Agents.Defaults.Temperature,
 		cfg.Agents.Defaults.MaxToolIterations,
 		cfg.Tools.Web.Search.APIKey,
 		&agent.ExecToolConfig{Timeout: cfg.Tools.Exec.Timeout},
@@ -280,12 +282,24 @@ func createAgentLoopWithConfig(
 		maxIterations = cfg.Agents.Defaults.MaxToolIterations
 	}
 
+	maxTokens := agentCfg.MaxTokens
+	if maxTokens == 0 {
+		maxTokens = cfg.Agents.Defaults.MaxTokens
+	}
+
+	temperature := agentCfg.Temperature
+	if temperature == 0 {
+		temperature = cfg.Agents.Defaults.Temperature
+	}
+
 	return agent.NewAgentLoop(
 		agentCfg.Name,
 		bus,
 		provider,
 		workspace,
 		provider.GetDefaultModel(),
+		maxTokens,
+		temperature,
 		maxIterations,
 		cfg.Tools.Web.Search.APIKey,
 		&agent.ExecToolConfig{Timeout: cfg.Tools.Exec.Timeout},

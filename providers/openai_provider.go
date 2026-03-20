@@ -3,6 +3,8 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"regexp"
+	"strings"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -82,6 +84,21 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []openai.ChatComplet
 		})
 	}
 
+	// Check if content contains JSON code block with tool call
+	if len(toolCalls) == 0 && choice.Message.Content != "" {
+		if containsJSONCodeBlock(choice.Message.Content) {
+			jsonContent := extractJSONFromCodeBlock(choice.Message.Content)
+			if jsonContent != "" {
+				parsedToolCalls, err := parseToolCallFromJSON(jsonContent)
+				if err == nil && len(parsedToolCalls) > 0 {
+					toolCalls = parsedToolCalls
+					// Clear content since we're treating this as a tool call
+					choice.Message.Content = ""
+				}
+			}
+		}
+	}
+
 	finishReason := string(choice.FinishReason)
 	response := &LLMResponse{
 		Content:          choice.Message.Content,
@@ -103,4 +120,69 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []openai.ChatComplet
 
 func (p *OpenAIProvider) GetDefaultModel() string {
 	return p.defaultModel
+}
+
+// containsJSONCodeBlock checks if the content contains a JSON code block
+func containsJSONCodeBlock(content string) bool {
+	pattern := regexp.MustCompile("```json[\\s\\S]*?```")
+	return pattern.MatchString(content)
+}
+
+// extractJSONFromCodeBlock extracts JSON content from a code block
+func extractJSONFromCodeBlock(content string) string {
+	pattern := regexp.MustCompile("```json[\\s\\S]*?```")
+	matches := pattern.FindString(content)
+	if matches == "" {
+		return ""
+	}
+	// Remove the code block markers
+	jsonContent := strings.TrimPrefix(matches, "```json")
+	jsonContent = strings.TrimSuffix(jsonContent, "```")
+	jsonContent = strings.TrimSpace(jsonContent)
+	return jsonContent
+}
+
+// parseToolCallFromJSON parses tool call from JSON content
+func parseToolCallFromJSON(jsonContent string) ([]ToolCallRequest, error) {
+	var toolCallData map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonContent), &toolCallData); err != nil {
+		return nil, err
+	}
+
+	// Check if it has tool call structure
+	if toolName, ok := toolCallData["tool"].(string); ok {
+		// Standard tool call format: {"tool": "name", "params": {...}}
+		params := make(map[string]interface{})
+		if p, ok := toolCallData["params"].(map[string]interface{}); ok {
+			params = p
+		} else if p, ok := toolCallData["parameters"].(map[string]interface{}); ok {
+			params = p
+		} else {
+			// Use the entire object as params if no specific params field
+			for k, v := range toolCallData {
+				if k != "tool" {
+					params[k] = v
+				}
+			}
+		}
+
+		return []ToolCallRequest{
+			{
+				ID:        "auto-generated",
+				Name:      toolName,
+				Arguments: params,
+			},
+		}, nil
+	} else if _, ok := toolCallData["type"].(string); ok {
+		// Interaction tool format: {"type": "click", "x": 100, "y": 200}
+		return []ToolCallRequest{
+			{
+				ID:        "auto-generated",
+				Name:      "interaction",
+				Arguments: toolCallData,
+			},
+		}, nil
+	}
+
+	return nil, nil
 }

@@ -64,6 +64,8 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		provider,
 		cfg.Agents.Defaults.Workspace,
 		provider.GetDefaultModel(),
+		cfg.Agents.Defaults.MaxTokens,
+		cfg.Agents.Defaults.Temperature,
 		cfg.Agents.Defaults.MaxToolIterations,
 		cfg.Tools.Web.Search.APIKey,
 		&agent.ExecToolConfig{Timeout: cfg.Tools.Exec.Timeout},
