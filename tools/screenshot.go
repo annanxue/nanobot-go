@@ -64,7 +64,11 @@ func (t *ScreenshotTool) Execute(ctx context.Context, params map[string]interfac
 		return "", fmt.Errorf("failed to encode screenshot: %w", err)
 	}
 
-	filename := filepath.Join(t.tempDir, fmt.Sprintf("screenshot_%d.png", time.Now().UnixMilli()))
+	filename := filepath.Join(t.tempDir, "screenshot", fmt.Sprintf("screenshot_%d.png", time.Now().UnixMilli()))
+	// 确保 screenshot 目录存在
+	if err := os.MkdirAll(filepath.Join(t.tempDir, "screenshot"), 0755); err != nil {
+		return "", fmt.Errorf("failed to create screenshot directory: %w", err)
+	}
 	if err := os.WriteFile(filename, buf.Bytes(), 0644); err != nil {
 		return "", fmt.Errorf("failed to save screenshot: %w", err)
 	}
