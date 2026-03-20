@@ -12,6 +12,15 @@ body (optional)
 footer (optional)
 ```
 
+## Language Requirement
+
+**IMPORTANT: All commit messages must be in English only.**
+
+- English is the standard language for technical collaboration
+- It ensures consistency across the codebase
+- It facilitates international team collaboration
+- It improves compatibility with tools and services
+
 ## Types
 
 - **feat**: New feature
